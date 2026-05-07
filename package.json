@@ -1,0 +1,20 @@
+{
+  "name": "freemarker-preview",
+  "version": "0.0.0",
+  "description": "FreeMarker template previewer for JS developers in Spring Boot shops",
+  "type": "module",
+  "bin": {
+    "freemarker-preview": "src/cli/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}

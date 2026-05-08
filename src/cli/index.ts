@@ -2,16 +2,19 @@
 import { runRender } from './commands/render.ts'
 import { runDev } from './commands/dev.ts'
 import { runShot } from './commands/shot.ts'
+import { runInit } from './commands/init.ts'
 
 const HELP = `freemarker-preview — FreeMarker template previewer
 
 Usage:
+  freemarker-preview init [--force] [--no-warmup]
   freemarker-preview dev [--port N] [--no-open]
   freemarker-preview render <template> [--fixture <name>] [--data <fixture.json>] [--json]
   freemarker-preview shot <template> [--fixture <name>] [--out file.png]
   freemarker-preview --help
 
 Commands:
+  init      Scaffold .freemarkerrc.json (Spring Boot heuristics + JBang pre-warm)
   dev       Start a live-reloading dev server with iframe preview
   render    Render a template against fixture data and write HTML to stdout
   shot      Capture a PNG screenshot of the rendered template
@@ -53,6 +56,7 @@ async function main(argv: string[]): Promise<number> {
     return 0
   }
 
+  if (command === 'init') return runInit(rest)
   if (command === 'render') return runRender(rest)
   if (command === 'dev') return runDev(rest)
   if (command === 'shot') return runShot(rest)

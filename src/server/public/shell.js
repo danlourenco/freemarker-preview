@@ -1,9 +1,13 @@
 (function () {
   const iframe = document.getElementById('preview');
+  const iframeWrap = document.getElementById('iframe-wrap');
   const status = document.getElementById('status');
   const statusLabel = document.getElementById('status-label');
   const sidebar = document.getElementById('templates');
   const fixtures = document.getElementById('fixtures');
+  const widthBtns = document.querySelectorAll('.width-btn');
+  const widthCustom = document.getElementById('width-custom');
+  const darkToggle = document.getElementById('dark-toggle');
   const overlay = document.getElementById('overlay');
   const overlayType = document.getElementById('overlay-type');
   const overlayLocation = document.getElementById('overlay-location');
@@ -24,14 +28,16 @@
     return {
       template: u.searchParams.get('template'),
       fixture: u.searchParams.get('fixture'),
+      width: u.searchParams.get('width'),
+      dark: u.searchParams.get('dark') === '1',
     };
   }
 
   function setParams(updates) {
     const u = new URL(window.location.href);
     for (const [k, v] of Object.entries(updates)) {
-      if (v == null) u.searchParams.delete(k);
-      else u.searchParams.set(k, String(v));
+      if (v == null || v === false || v === '') u.searchParams.delete(k);
+      else u.searchParams.set(k, v === true ? '1' : String(v));
     }
     window.history.replaceState(null, '', u.toString());
   }
@@ -94,6 +100,70 @@
     refresh();
   }
 
+  /* ---------- width controls ---------- */
+
+  function applyWidth() {
+    const p = getParams();
+    let cssWidth = '600px';
+    let active = '600';
+    let custom = '';
+
+    if (p.width === 'full') {
+      cssWidth = '100%';
+      active = 'full';
+    } else if (p.width === '375') {
+      cssWidth = '375px';
+      active = '375';
+    } else if (p.width === '600' || !p.width) {
+      cssWidth = '600px';
+      active = '600';
+    } else if (/^\d+$/.test(p.width)) {
+      cssWidth = p.width + 'px';
+      active = '';
+      custom = p.width;
+    }
+    iframeWrap.style.setProperty('--preview-width', cssWidth);
+    for (const btn of widthBtns) {
+      btn.setAttribute(
+        'aria-pressed',
+        String(btn.dataset.width === active),
+      );
+    }
+    if (document.activeElement !== widthCustom) {
+      widthCustom.value = custom;
+    }
+  }
+
+  widthBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setParams({ width: btn.dataset.width });
+      applyWidth();
+    });
+  });
+
+  widthCustom.addEventListener('change', () => {
+    const n = parseInt(widthCustom.value, 10);
+    if (Number.isFinite(n) && n > 0) {
+      setParams({ width: String(n) });
+      applyWidth();
+    }
+  });
+
+  /* ---------- dark toggle ---------- */
+
+  function applyDark() {
+    const p = getParams();
+    darkToggle.setAttribute('aria-pressed', String(p.dark));
+    iframe.style.colorScheme = p.dark ? 'dark' : '';
+  }
+
+  darkToggle.addEventListener('click', () => {
+    const p = getParams();
+    setParams({ dark: !p.dark });
+    applyDark();
+    refresh();
+  });
+
   /* ---------- error overlay ---------- */
 
   function hideOverlay() { overlay.hidden = true; }
@@ -149,6 +219,7 @@
     const qs = new URLSearchParams();
     qs.set('template', p.template);
     if (p.fixture) qs.set('fixture', p.fixture);
+    if (p.dark) qs.set('dark', '1');
 
     try {
       const res = await fetch('/render?' + qs.toString(), { signal: ctrl.signal });
@@ -204,6 +275,8 @@
     await ensureTemplateInUrl();
     renderSidebar();
     renderFixturePicker();
+    applyWidth();
+    applyDark();
     await refresh();
   }
 

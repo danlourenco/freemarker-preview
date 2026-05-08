@@ -115,6 +115,83 @@ body {
   color: var(--pill-active-fg);
 }
 
+.shell-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.width-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.width-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 4px 10px;
+  font: inherit;
+  border-right: 1px solid var(--border);
+}
+
+.width-btn:last-of-type { border-right: 0; }
+
+.width-btn:hover { background: var(--row-hover); }
+
+.width-btn[aria-pressed="true"] {
+  background: var(--pill-active-bg);
+  color: var(--pill-active-fg);
+}
+
+.width-custom {
+  width: 64px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.width-custom::-webkit-outer-spin-button,
+.width-custom::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.dark-toggle {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dark-toggle:hover { background: var(--row-hover); }
+
+.dark-toggle[aria-pressed="true"] {
+  background: var(--pill-active-bg);
+  color: var(--pill-active-fg);
+  border-color: var(--pill-active-bg);
+}
+
+.dark-icon { font-size: 13px; line-height: 1; }
+
 .shell-status {
   display: inline-flex;
   align-items: center;
@@ -215,11 +292,12 @@ body {
 .iframe-wrap {
   position: relative;
   width: 100%;
-  max-width: 800px;
+  max-width: var(--preview-width, 600px);
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: max-width 0.15s ease;
 }
 
 iframe {

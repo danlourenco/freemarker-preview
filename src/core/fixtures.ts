@@ -31,15 +31,18 @@ export function resolveFixture(
     return join(fixturesDir, candidates[0]!)
   }
 
-  if (fixtureName) {
-    throw new Error(
-      `--fixture ${fixtureName} given but no fixture directory found at ${fixturesDir}`,
-    )
-  }
-
-  const sibling = join(dir, `${stem}.json`)
+  // No .fixtures/ directory. Fall back to a sibling JSON.
+  // - If fixtureName given: try <dir>/<fixtureName>.json
+  // - Otherwise: try <dir>/<template-stem>.json
+  const siblingName = fixtureName ?? stem
+  const sibling = join(dir, `${siblingName}.json`)
   if (existsSync(sibling)) return sibling
 
+  if (fixtureName) {
+    throw new Error(
+      `--fixture ${fixtureName} given but no fixture directory at ${fixturesDir} and no sibling ${sibling}`,
+    )
+  }
   throw new Error(
     `no fixture found for ${templatePath} (expected ${fixturesDir}/*.json or ${sibling})`,
   )

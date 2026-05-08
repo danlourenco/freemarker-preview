@@ -200,9 +200,12 @@ export class DevServer {
 
     try {
       const { html } = await this.daemon.render({ templateName, fixturePath })
-      const out = this.inlineCssEnabled
+      let out = this.inlineCssEnabled
         ? inlineCss(html, this.inlineCssOptions)
         : html
+      if (url.searchParams.get('dark') === '1') {
+        out = promoteDarkRules(out)
+      }
       res.statusCode = 200
       res.setHeader('content-type', 'text/html; charset=utf-8')
       res.setHeader('cache-control', 'no-store')
@@ -270,6 +273,73 @@ export class DevServer {
       try { client.write(message) } catch { /* dropped */ }
     }
   }
+}
+
+/**
+ * For dark-mode preview, find @media (prefers-color-scheme: dark) blocks in
+ * the rendered HTML's surviving <style> tags and emit their contents
+ * unconditionally, appended to <head>. This makes the dark rules apply even
+ * though the iframe itself isn't actually under a dark OS preference.
+ *
+ * The original media block stays in place (so light mode still works on
+ * subsequent toggles) — we just pile the dark rules on top with later cascade
+ * order. A meta color-scheme hint is added so `system` UI elements (form
+ * controls, scrollbars) also reflect dark.
+ */
+export function promoteDarkRules(html: string): string {
+  const styleBlockRe = /<style\b[^>]*>([\s\S]*?)<\/style>/gi
+  // Match `@media <query>` where <query> contains `prefers-color-scheme: dark`
+  // anywhere up to the opening `{`. Captures multi-condition queries too:
+  //   @media (prefers-color-scheme: dark) and (max-width: 600px) { ... }
+  const darkMediaRe =
+    /@media\s+[^{]*prefers-color-scheme\s*:\s*dark[^{]*\{((?:[^{}]|\{[^{}]*\})*)\}/g
+
+  const promoted: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = styleBlockRe.exec(html))) {
+    const css = m[1] ?? ''
+    let dm: RegExpExecArray | null
+    while ((dm = darkMediaRe.exec(css))) {
+      const inner = dm[1]
+      if (inner) promoted.push(inner.trim())
+    }
+  }
+
+  if (promoted.length === 0) {
+    // No dark rules to promote — still hint UA color-scheme via meta.
+    return injectIntoHead(html, '<meta name="color-scheme" content="dark">')
+  }
+
+  // juice inlines the unconditional rules into `style="..."` attributes.
+  // Inline styles beat any `<style>` selector via specificity, so the
+  // promoted dark rules need !important to actually win the cascade.
+  const importanted = promoted.map(addImportantToDeclarations).join('\n')
+
+  const promotedStyle =
+    `<meta name="color-scheme" content="dark">\n` +
+    `<style data-fmp-dark-promoted>\n${importanted}\n</style>`
+  return injectIntoHead(html, promotedStyle)
+}
+
+function addImportantToDeclarations(css: string): string {
+  return css.replace(
+    /([\w-]+\s*:\s*[^;}]+?)(\s*[;}])/g,
+    (match, decl: string, end: string) => {
+      if (/!\s*important/i.test(decl)) return match
+      return `${decl} !important${end}`
+    },
+  )
+}
+
+function injectIntoHead(html: string, fragment: string): string {
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${fragment}\n</head>`)
+  }
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (match) => `${match}\n${fragment}`)
+  }
+  // No <head> at all — prepend so the rule still wins via cascade order.
+  return `${fragment}\n${html}`
 }
 
 async function readSnippet(err: FreemarkerError): Promise<Snippet | undefined> {

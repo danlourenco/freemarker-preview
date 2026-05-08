@@ -3,6 +3,7 @@ import { runRender } from './commands/render.ts'
 import { runDev } from './commands/dev.ts'
 import { runShot } from './commands/shot.ts'
 import { runInit } from './commands/init.ts'
+import { ensurePrerequisites } from '../core/prereqs.ts'
 
 const HELP = `freemarker-preview — FreeMarker template previewer
 
@@ -54,6 +55,15 @@ async function main(argv: string[]): Promise<number> {
   if (!command || command === '--help' || command === '-h') {
     process.stdout.write(HELP)
     return 0
+  }
+
+  if (
+    command === 'init' ||
+    command === 'render' ||
+    command === 'dev' ||
+    command === 'shot'
+  ) {
+    ensurePrerequisites()
   }
 
   if (command === 'init') return runInit(rest)

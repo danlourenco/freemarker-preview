@@ -17,6 +17,7 @@ Render flags:
   --fixture <name>   Select a fixture by name from <template>.fixtures/
   --data <path>      Explicit fixture path (overrides convention)
   --json             Emit a structured error envelope to stderr on failure
+  --no-inline-css    Skip the post-render CSS inlining pass
 
 Dev flags:
   --port N           Preferred port (walks +5 if busy). Defaults to 5173.

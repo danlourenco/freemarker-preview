@@ -6,12 +6,15 @@ import { RenderDaemon } from '../core/daemon.ts'
 import { resolveFixture } from '../core/fixtures.ts'
 import { FreemarkerError } from '../core/errors.ts'
 import { extractSnippet, type Snippet } from '../core/format-error.ts'
+import { inlineCss } from '../core/inline.ts'
 import { Watcher } from './watcher.ts'
 
 export interface DevServerOptions {
   templatesRoot: string
   fixturesRoot?: string | null
   port?: number
+  inlineCss?: boolean
+  inlineCssOptions?: Record<string, unknown>
 }
 
 const DEFAULT_PORT = 5173
@@ -25,6 +28,8 @@ export class DevServer {
   private readonly templatesRoot: string
   private readonly fixturesRoot: string | null
   private readonly preferredPort: number
+  private readonly inlineCssEnabled: boolean
+  private readonly inlineCssOptions: Record<string, unknown>
 
   private daemon: RenderDaemon | null = null
   private watcher: Watcher | null = null
@@ -38,6 +43,8 @@ export class DevServer {
       ? resolve(opts.fixturesRoot)
       : null
     this.preferredPort = opts.port ?? DEFAULT_PORT
+    this.inlineCssEnabled = opts.inlineCss ?? true
+    this.inlineCssOptions = opts.inlineCssOptions ?? { preserveMediaQueries: true }
   }
 
   async start(): Promise<{ url: string; port: number }> {
@@ -184,10 +191,13 @@ export class DevServer {
 
     try {
       const { html } = await this.daemon.render({ templateName, fixturePath })
+      const out = this.inlineCssEnabled
+        ? inlineCss(html, this.inlineCssOptions)
+        : html
       res.statusCode = 200
       res.setHeader('content-type', 'text/html; charset=utf-8')
       res.setHeader('cache-control', 'no-store')
-      res.end(html)
+      res.end(out)
     } catch (err) {
       res.statusCode = 500
       res.setHeader('content-type', 'application/json; charset=utf-8')

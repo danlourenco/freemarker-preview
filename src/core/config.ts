@@ -11,6 +11,7 @@ export interface Config {
   fixturesRoot: string | null
   locale: string
   inlineCss: boolean
+  inlineCssOptions: Record<string, unknown>
   dev: DevConfig
   configPath: string | null
 }
@@ -22,6 +23,7 @@ const DEFAULTS: Omit<Config, 'configPath'> = {
   fixturesRoot: null,
   locale: 'en_US',
   inlineCss: true,
+  inlineCssOptions: { preserveMediaQueries: true },
   dev: { port: 5173, open: true },
 }
 

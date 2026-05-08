@@ -58,6 +58,8 @@ export async function runDev(argv: string[]): Promise<number> {
     templatesRoot,
     fixturesRoot,
     port: args.port ?? cfg.dev.port,
+    inlineCss: cfg.inlineCss,
+    inlineCssOptions: cfg.inlineCssOptions,
   })
 
   const wantsOpen = args.open && cfg.dev.open

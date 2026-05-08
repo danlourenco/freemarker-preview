@@ -133,4 +133,29 @@ describe('cli', () => {
     expect(code).toBe(0)
     expect(stdout).toContain('Hello, World!')
   })
+
+  test('render inlines CSS by default — child element gets style="..."', async () => {
+    const { stdout, code } = await runCli([
+      'render',
+      resolve('fixtures/styled.ftlh'),
+    ])
+    expect(code).toBe(0)
+    expect(stdout).toMatch(
+      /<p[^>]*class="greeting"[^>]*style="[^"]*color: red[^"]*"/,
+    )
+    // @media is preserved by default
+    expect(stdout).toContain('@media (prefers-color-scheme: dark)')
+  })
+
+  test('render --no-inline-css keeps the <style> block intact', async () => {
+    const { stdout, code } = await runCli([
+      'render',
+      resolve('fixtures/styled.ftlh'),
+      '--no-inline-css',
+    ])
+    expect(code).toBe(0)
+    expect(stdout).toContain('<style>')
+    expect(stdout).toContain('.greeting { color: red')
+    expect(stdout).not.toMatch(/<p[^>]*style="/)
+  })
 })

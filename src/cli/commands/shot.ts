@@ -45,17 +45,34 @@ export function parseShotArgs(argv: string[]): ShotArgs {
 }
 
 /**
- * Default output filename: <template-stem>[-<fixture-name>].png. When the
- * fixture is the sibling-fallback (basename equals template stem), the
- * fixture suffix is omitted.
+ * Default output filename: <template-stem>[-<fixture-name>]-<timestamp>.png.
+ * Timestamp is local-time ISO basic form (YYYYMMDDTHHmmss) — filesystem-safe
+ * (no colons, lexicographically sortable). When the fixture is the
+ * sibling-fallback (basename equals template stem), the fixture suffix is
+ * omitted.
  */
 export function defaultOutputPath(
   templatePath: string,
   fixturePath: string,
+  now: Date = new Date(),
 ): string {
   const tplStem = basename(templatePath, extname(templatePath))
   const fixStem = basename(fixturePath, extname(fixturePath))
-  return tplStem === fixStem ? `${tplStem}.png` : `${tplStem}-${fixStem}.png`
+  const stem = tplStem === fixStem ? tplStem : `${tplStem}-${fixStem}`
+  return `${stem}-${formatTimestamp(now)}.png`
+}
+
+function formatTimestamp(d: Date): string {
+  const pad = (n: number, w = 2) => String(n).padStart(w, '0')
+  return (
+    `${d.getFullYear()}` +
+    `${pad(d.getMonth() + 1)}` +
+    `${pad(d.getDate())}` +
+    `T` +
+    `${pad(d.getHours())}` +
+    `${pad(d.getMinutes())}` +
+    `${pad(d.getSeconds())}`
+  )
 }
 
 export async function runShot(argv: string[]): Promise<number> {

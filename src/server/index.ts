@@ -15,6 +15,7 @@ export interface DevServerOptions {
   port?: number
   inlineCss?: boolean
   inlineCssOptions?: Record<string, unknown>
+  previewMissingAs?: 'error' | 'placeholder' | 'empty'
 }
 
 const DEFAULT_PORT = 5173
@@ -30,6 +31,7 @@ export class DevServer {
   private readonly preferredPort: number
   private readonly inlineCssEnabled: boolean
   private readonly inlineCssOptions: Record<string, unknown>
+  private readonly missingMode: 'error' | 'placeholder' | 'empty'
 
   private daemon: RenderDaemon | null = null
   private watcher: Watcher | null = null
@@ -45,10 +47,14 @@ export class DevServer {
     this.preferredPort = opts.port ?? DEFAULT_PORT
     this.inlineCssEnabled = opts.inlineCss ?? true
     this.inlineCssOptions = opts.inlineCssOptions ?? { preserveMediaQueries: true }
+    this.missingMode = opts.previewMissingAs ?? 'error'
   }
 
   async start(): Promise<{ url: string; port: number }> {
-    this.daemon = new RenderDaemon({ templatesRoot: this.templatesRoot })
+    this.daemon = new RenderDaemon({
+      templatesRoot: this.templatesRoot,
+      previewMissingAs: this.missingMode,
+    })
 
     const watchRoots = [this.templatesRoot]
     if (this.fixturesRoot && this.fixturesRoot !== this.templatesRoot) {

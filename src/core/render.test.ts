@@ -100,6 +100,32 @@ describe('core.render', () => {
     } satisfies Partial<FreemarkerError>)
   })
 
+  test('previewMissingAs: placeholder renders a fmp-missing span instead of throwing', async () => {
+    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
+    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
+
+    const { html } = await render(templatePath, fixturePath, {
+      previewMissingAs: 'placeholder',
+    })
+
+    expect(html).toMatch(/<span\s+class="fmp-missing"/)
+    expect(html).toContain('recipient.naem')
+    expect(html).toContain('‹')
+    expect(html).toContain('›')
+  })
+
+  test('previewMissingAs: empty renders an empty string at the missing reference site', async () => {
+    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
+    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
+
+    const { html } = await render(templatePath, fixturePath, {
+      previewMissingAs: 'empty',
+    })
+
+    expect(html).toContain('Hello, !')
+    expect(html).not.toContain('fmp-missing')
+  })
+
   test('rejects with FreemarkerError(internal) when jbang fails to produce a parseable envelope', async () => {
     const templatePath = resolve('fixtures/hello.ftlh')
     const fixturePath = resolve('fixtures/hello.json')

@@ -54,12 +54,19 @@ export async function runDev(argv: string[]): Promise<number> {
       ? resolve(dirname(cfg.configPath), cfg.fixturesRoot)
       : null
 
+  if (cfg.previewMissingAs !== 'error') {
+    process.stderr.write(
+      `note: previewMissingAs="${cfg.previewMissingAs}" — preview diverges from production strict-mode behavior\n`,
+    )
+  }
+
   const server = new DevServer({
     templatesRoot,
     fixturesRoot,
     port: args.port ?? cfg.dev.port,
     inlineCss: cfg.inlineCss,
     inlineCssOptions: cfg.inlineCssOptions,
+    previewMissingAs: cfg.previewMissingAs,
   })
 
   const wantsOpen = args.open && cfg.dev.open

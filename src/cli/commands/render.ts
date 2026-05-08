@@ -140,8 +140,17 @@ export async function runRender(argv: string[]): Promise<number> {
 
   const shouldInline = !args.noInlineCss && cfg.inlineCss
 
+  if (cfg.previewMissingAs !== 'error') {
+    process.stderr.write(
+      `note: previewMissingAs="${cfg.previewMissingAs}" — preview diverges from production strict-mode behavior\n`,
+    )
+  }
+
   try {
-    const { html } = await render(templatePath, fixturePath, { templatesRoot })
+    const { html } = await render(templatePath, fixturePath, {
+      templatesRoot,
+      previewMissingAs: cfg.previewMissingAs,
+    })
     const out = shouldInline ? inlineCss(html, cfg.inlineCssOptions) : html
     process.stdout.write(out)
     return 0

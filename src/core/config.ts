@@ -6,12 +6,15 @@ export interface DevConfig {
   open: boolean
 }
 
+export type PreviewMissingMode = 'error' | 'placeholder' | 'empty'
+
 export interface Config {
   templatesRoot: string | null
   fixturesRoot: string | null
   locale: string
   inlineCss: boolean
   inlineCssOptions: Record<string, unknown>
+  previewMissingAs: PreviewMissingMode
   dev: DevConfig
   configPath: string | null
 }
@@ -24,6 +27,7 @@ const DEFAULTS: Omit<Config, 'configPath'> = {
   locale: 'en_US',
   inlineCss: true,
   inlineCssOptions: { preserveMediaQueries: true },
+  previewMissingAs: 'error',
   dev: { port: 5173, open: true },
 }
 

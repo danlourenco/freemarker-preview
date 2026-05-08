@@ -3,11 +3,12 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { FreemarkerError, type StructuredError } from './errors.ts'
 import { debugLog } from './debug-log.ts'
-import type { RenderResult } from './render.ts'
+import type { PreviewMissingAs, RenderResult } from './render.ts'
 
 export interface DaemonOptions {
   templatesRoot: string
   javaScriptPath?: string
+  previewMissingAs?: PreviewMissingAs
 }
 
 export interface DaemonRenderRequest {
@@ -42,6 +43,7 @@ const MAX_RESPAWNS = 1
 export class RenderDaemon {
   private readonly templatesRoot: string
   private readonly javaScriptPath: string
+  private readonly missingMode: PreviewMissingAs
 
   private proc: ChildProcessWithoutNullStreams | null = null
   private buffer = ''
@@ -56,6 +58,7 @@ export class RenderDaemon {
   constructor(opts: DaemonOptions) {
     this.templatesRoot = resolve(opts.templatesRoot)
     this.javaScriptPath = opts.javaScriptPath ?? DEFAULT_JAVA_SCRIPT_PATH
+    this.missingMode = opts.previewMissingAs ?? 'error'
   }
 
   render(req: DaemonRenderRequest): Promise<RenderResult> {
@@ -141,7 +144,12 @@ export class RenderDaemon {
 
     const proc = spawn(
       'jbang',
-      [this.javaScriptPath, '--daemon', this.templatesRoot],
+      [
+        this.javaScriptPath,
+        '--daemon',
+        this.templatesRoot,
+        this.missingMode,
+      ],
       { stdio: ['pipe', 'pipe', 'pipe'] },
     )
 

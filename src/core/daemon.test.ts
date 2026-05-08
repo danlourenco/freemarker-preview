@@ -112,6 +112,21 @@ describe('RenderDaemon', () => {
     })
   })
 
+  test('previewMissingAs: placeholder is honored in daemon mode', async () => {
+    daemon = new RenderDaemon({
+      templatesRoot: fixturesRoot,
+      previewMissingAs: 'placeholder',
+    })
+
+    const { html } = await daemon.render({
+      templateName: 'errors/undefined-variable.ftlh',
+      fixturePath: resolve('fixtures/errors/undefined-variable.json'),
+    })
+
+    expect(html).toMatch(/<span\s+class="fmp-missing"/)
+    expect(html).toContain('recipient.naem')
+  })
+
   test('shutdown() ends the underlying process and rejects subsequent renders', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 

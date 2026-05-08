@@ -1,10 +1,10 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolve } from 'node:path'
 import { render } from './render.ts'
-import { debugLog, rotateIfNeeded, MAX_LOG_BYTES } from './debug-log.ts'
+import { debugLog, rotateIfNeeded, MAX_LOG_BYTES, computeDebugLogPath } from './debug-log.ts'
 
 let scratch: string
 let logPath: string
@@ -54,6 +54,55 @@ describe('debug log', () => {
     const content = existsSync(logPath) ? readFileSync(logPath, 'utf8') : ''
     expect(content).not.toContain('"World"')
     expect(content).not.toContain('"name": "World"')
+  })
+
+  describe('computeDebugLogPath (cross-platform resolution)', () => {
+    test('Windows: uses %LOCALAPPDATA% and backslashes', () => {
+      const got = computeDebugLogPath({
+        platform: 'win32',
+        homedir: 'C:\\Users\\jane',
+        env: { LOCALAPPDATA: 'C:\\Users\\jane\\AppData\\Local' },
+      })
+      expect(got).toBe(
+        'C:\\Users\\jane\\AppData\\Local\\freemarker-preview\\debug.log',
+      )
+    })
+
+    test('Windows without LOCALAPPDATA: falls through to ~/.cache (degraded)', () => {
+      const got = computeDebugLogPath({
+        platform: 'win32',
+        homedir: 'C:\\Users\\jane',
+        env: {},
+      })
+      expect(got).toBe('C:\\Users\\jane\\.cache\\freemarker-preview\\debug.log')
+    })
+
+    test('macOS: ~/.cache/freemarker-preview/debug.log', () => {
+      const got = computeDebugLogPath({
+        platform: 'darwin',
+        homedir: '/Users/jane',
+        env: {},
+      })
+      expect(got).toBe('/Users/jane/.cache/freemarker-preview/debug.log')
+    })
+
+    test('Linux with XDG_CACHE_HOME: respects it', () => {
+      const got = computeDebugLogPath({
+        platform: 'linux',
+        homedir: '/home/jane',
+        env: { XDG_CACHE_HOME: '/var/cache/jane' },
+      })
+      expect(got).toBe('/var/cache/jane/freemarker-preview/debug.log')
+    })
+
+    test('FREEMARKER_PREVIEW_DEBUG_LOG override always wins', () => {
+      const got = computeDebugLogPath({
+        platform: 'darwin',
+        homedir: '/Users/jane',
+        env: { FREEMARKER_PREVIEW_DEBUG_LOG: '/tmp/x.log' },
+      })
+      expect(got).toBe('/tmp/x.log')
+    })
   })
 
   test('rotateIfNeeded rolls over at MAX_LOG_BYTES and keeps last 3 archives', () => {

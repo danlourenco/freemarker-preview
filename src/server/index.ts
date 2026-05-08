@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { connect as netConnect } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
@@ -90,30 +91,7 @@ export class DevServer {
   }
 
   private listenWithPortWalk(server: Server): Promise<number> {
-    return new Promise((resolveP, rejectP) => {
-      let port = this.preferredPort
-      const tryListen = (): void => {
-        const onError = (err: NodeJS.ErrnoException): void => {
-          if (err.code !== 'EADDRINUSE') return rejectP(err)
-          if (port - this.preferredPort >= PORT_WALK_LIMIT) {
-            return rejectP(
-              new Error(
-                `ports ${this.preferredPort}..${this.preferredPort + PORT_WALK_LIMIT} are all busy`,
-              ),
-            )
-          }
-          port++
-          server.removeListener('error', onError)
-          tryListen()
-        }
-        server.once('error', onError)
-        server.listen(port, '127.0.0.1', () => {
-          server.removeListener('error', onError)
-          resolveP(port)
-        })
-      }
-      tryListen()
-    })
+    return listenWithPortWalk(server, this.preferredPort, PORT_WALK_LIMIT)
   }
 
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -274,6 +252,70 @@ export class DevServer {
     }
   }
 }
+
+/**
+ * Walk forward from `preferredPort` up to `walkLimit` extra ports until we
+ * find one that is (a) not answering an existing TCP connection on
+ * `localhost` (any IP family) and (b) successfully accepts our bind.
+ *
+ * Catches the cross-family squatter case (e.g. Vite on `::1:5173` while our
+ * bind to `127.0.0.1:5173` would succeed silently and the browser would
+ * resolve `localhost` to the squatter).
+ */
+export async function listenWithPortWalk(
+  server: Server,
+  preferredPort: number,
+  walkLimit: number,
+  probeTimeoutMs = 200,
+): Promise<number> {
+  for (let i = 0; i <= walkLimit; i++) {
+    const port = preferredPort + i
+    if (await isPortAnswering(port, probeTimeoutMs)) continue
+    try {
+      return await listenOn(server, port)
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') continue
+      throw err
+    }
+  }
+  throw new Error(
+    `ports ${preferredPort}..${preferredPort + walkLimit} are all busy`,
+  )
+}
+
+function isPortAnswering(port: number, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = netConnect({ host: 'localhost', port })
+    let settled = false
+    const finish = (answering: boolean): void => {
+      if (settled) return
+      settled = true
+      socket.destroy()
+      resolve(answering)
+    }
+    socket.setTimeout(timeoutMs)
+    socket.once('connect', () => finish(true))
+    socket.once('timeout', () => finish(false))
+    socket.once('error', () => finish(false))
+  })
+}
+
+function listenOn(server: Server, port: number): Promise<number> {
+  return new Promise((resolveP, rejectP) => {
+    const onError = (err: Error): void => {
+      server.removeListener('listening', onListen)
+      rejectP(err)
+    }
+    const onListen = (): void => {
+      server.removeListener('error', onError)
+      resolveP(port)
+    }
+    server.once('error', onError)
+    server.once('listening', onListen)
+    server.listen(port, '127.0.0.1')
+  })
+}
+
 
 /**
  * For dark-mode preview, find @media (prefers-color-scheme: dark) blocks in

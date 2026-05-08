@@ -10,9 +10,11 @@ function runCli(args: string[]): Promise<{
   code: number | null
 }> {
   return new Promise((resolveP, rejectP) => {
-    const proc = spawn(process.execPath, [cliEntry, ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    const proc = spawn(
+      process.execPath,
+      ['--no-warnings', cliEntry, ...args],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
     let stdout = ''
     let stderr = ''
     proc.stdout.setEncoding('utf8')
@@ -78,6 +80,55 @@ describe('cli', () => {
     const { stdout, code } = await runCli([
       'render',
       resolve('fixtures/hello.ftlh'),
+    ])
+    expect(code).toBe(0)
+    expect(stdout).toContain('Hello, World!')
+  })
+
+  test('render with a typo template writes a pretty error with file:line:col + snippet to stderr', async () => {
+    const tpl = resolve('fixtures/errors/undefined-variable.ftlh')
+    const { stderr, code } = await runCli([
+      'render',
+      tpl,
+      '--data',
+      resolve('fixtures/errors/undefined-variable.json'),
+    ])
+
+    expect(code).not.toBe(0)
+    expect(stderr).toContain('undefined-variable')
+    expect(stderr).toContain(`${tpl}:`)
+    expect(stderr).toMatch(/recipient\.naem/)
+    expect(stderr).toMatch(/^>\s*\d+ \|/m)
+  })
+
+  test('render --json emits the structured error envelope to stderr', async () => {
+    const tpl = resolve('fixtures/errors/undefined-variable.ftlh')
+    const { stderr, code } = await runCli([
+      'render',
+      tpl,
+      '--data',
+      resolve('fixtures/errors/undefined-variable.json'),
+      '--json',
+    ])
+
+    expect(code).not.toBe(0)
+    const parsed = JSON.parse(stderr) as {
+      ok: false
+      error: { type: string; templatePath: string; line?: number }
+    }
+    expect(parsed.ok).toBe(false)
+    expect(parsed.error.type).toBe('undefined-variable')
+    expect(parsed.error.templatePath).toBe(tpl)
+    expect(parsed.error.line).toBeTypeOf('number')
+  })
+
+  test('render --json still writes HTML to stdout on success', async () => {
+    const { stdout, code } = await runCli([
+      'render',
+      resolve('fixtures/hello.ftlh'),
+      '--data',
+      resolve('fixtures/hello.json'),
+      '--json',
     ])
     expect(code).toBe(0)
     expect(stdout).toContain('Hello, World!')

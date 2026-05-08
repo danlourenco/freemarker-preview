@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { render } from './render.ts'
+import { FreemarkerError } from './errors.ts'
 import { resolve } from 'node:path'
 
 describe('core.render', () => {
@@ -32,5 +33,84 @@ describe('core.render', () => {
 
     expect(html).toContain('Header content')
     expect(html).toContain('Body content for Alice')
+  })
+
+  test('rejects with FreemarkerError(undefined-variable) for a typo reference', async () => {
+    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
+    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
+
+    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'undefined-variable',
+      line: expect.any(Number),
+      column: expect.any(Number),
+      templatePath,
+    } satisfies Partial<FreemarkerError>)
+  })
+
+  test('rejects with FreemarkerError(template-parse) for malformed template syntax', async () => {
+    const templatePath = resolve('fixtures/errors/template-parse.ftlh')
+    const fixturePath = resolve('fixtures/hello.json')
+
+    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'template-parse',
+      templatePath,
+    } satisfies Partial<FreemarkerError>)
+  })
+
+  test('rejects with FreemarkerError(template-not-found) for a missing template', async () => {
+    const templatePath = resolve('fixtures/does-not-exist.ftlh')
+    const fixturePath = resolve('fixtures/hello.json')
+
+    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'template-not-found',
+    } satisfies Partial<FreemarkerError>)
+  })
+
+  test('rejects with FreemarkerError(template-runtime) for runtime template errors', async () => {
+    const templatePath = resolve('fixtures/errors/template-runtime.ftlh')
+    const fixturePath = resolve('fixtures/errors/template-runtime.json')
+
+    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'template-runtime',
+      templatePath,
+    } satisfies Partial<FreemarkerError>)
+  })
+
+  test('rejects with FreemarkerError(fixture-read) for a missing fixture file', async () => {
+    const templatePath = resolve('fixtures/hello.ftlh')
+    const fixturePath = resolve('fixtures/does-not-exist.json')
+
+    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'fixture-read',
+    } satisfies Partial<FreemarkerError>)
+  })
+
+  test('rejects with FreemarkerError(fixture-parse) for malformed fixture JSON', async () => {
+    const templatePath = resolve('fixtures/hello.ftlh')
+    const fixturePath = resolve('fixtures/errors/fixture-parse.json')
+
+    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'fixture-parse',
+    } satisfies Partial<FreemarkerError>)
+  })
+
+  test('rejects with FreemarkerError(internal) when jbang fails to produce a parseable envelope', async () => {
+    const templatePath = resolve('fixtures/hello.ftlh')
+    const fixturePath = resolve('fixtures/hello.json')
+
+    await expect(
+      render(templatePath, fixturePath, {
+        javaScriptPath: '/nonexistent/Render.java',
+      }),
+    ).rejects.toMatchObject({
+      name: 'FreemarkerError',
+      type: 'internal',
+    } satisfies Partial<FreemarkerError>)
   })
 })

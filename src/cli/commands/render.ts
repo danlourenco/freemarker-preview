@@ -1,18 +1,23 @@
 import { dirname, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { render } from '../../core/render.ts'
 import { resolveFixture } from '../../core/fixtures.ts'
 import { loadConfig } from '../../core/config.ts'
+import { FreemarkerError } from '../../core/errors.ts'
+import { formatError } from '../../core/format-error.ts'
 
 export interface RenderArgs {
   template: string
   fixture?: string
   data?: string
+  json: boolean
 }
 
 export function parseRenderArgs(argv: string[]): RenderArgs {
   let template: string | undefined
   let fixture: string | undefined
   let data: string | undefined
+  let json = false
 
   let i = 0
   while (i < argv.length) {
@@ -27,6 +32,11 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
       i += 2
       continue
     }
+    if (arg === '--json') {
+      json = true
+      i += 1
+      continue
+    }
     if (!template && arg && !arg.startsWith('--')) {
       template = arg
       i += 1
@@ -37,7 +47,51 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
 
   if (!template) throw new Error('render: missing <template> argument')
 
-  return { template, fixture, data }
+  return { template, fixture, data, json }
+}
+
+function emitFailure(err: unknown, json: boolean, templatePath?: string): void {
+  if (err instanceof FreemarkerError) {
+    if (json) {
+      const envelope = {
+        ok: false,
+        error: {
+          type: err.type,
+          message: err.message,
+          line: err.line,
+          column: err.column,
+          templatePath: err.templatePath,
+        },
+      }
+      process.stderr.write(JSON.stringify(envelope))
+      return
+    }
+
+    let source: string | undefined
+    try {
+      source = readFileSync(err.templatePath, 'utf8')
+    } catch {
+      source = undefined
+    }
+    const colors = process.stderr.isTTY ?? false
+    process.stderr.write(`${formatError(err, source, { colors })}\n`)
+    return
+  }
+
+  const msg = err instanceof Error ? err.message : String(err)
+  if (json) {
+    const envelope = {
+      ok: false,
+      error: {
+        type: 'internal',
+        message: msg,
+        templatePath: templatePath ?? '',
+      },
+    }
+    process.stderr.write(JSON.stringify(envelope))
+  } else {
+    process.stderr.write(`${msg}\n`)
+  }
 }
 
 export async function runRender(argv: string[]): Promise<number> {
@@ -45,7 +99,7 @@ export async function runRender(argv: string[]): Promise<number> {
   try {
     args = parseRenderArgs(argv)
   } catch (err) {
-    process.stderr.write(`${(err as Error).message}\n`)
+    emitFailure(err, false)
     return 1
   }
 
@@ -53,7 +107,7 @@ export async function runRender(argv: string[]): Promise<number> {
   try {
     cfg = loadConfig(process.cwd())
   } catch (err) {
-    process.stderr.write(`${(err as Error).message}\n`)
+    emitFailure(err, args.json)
     return 1
   }
 
@@ -72,7 +126,7 @@ export async function runRender(argv: string[]): Promise<number> {
       ? resolve(args.data)
       : resolveFixture(templatePath, args.fixture)
   } catch (err) {
-    process.stderr.write(`${(err as Error).message}\n`)
+    emitFailure(err, args.json, templatePath)
     return 1
   }
 
@@ -81,7 +135,7 @@ export async function runRender(argv: string[]): Promise<number> {
     process.stdout.write(html)
     return 0
   } catch (err) {
-    process.stderr.write(`${(err as Error).message}\n`)
+    emitFailure(err, args.json, templatePath)
     return 1
   }
 }

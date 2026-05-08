@@ -1,20 +1,40 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, basename, relative, resolve } from 'node:path'
+import { FreemarkerError, type StructuredError } from './errors.ts'
+import { debugLog } from './debug-log.ts'
 
 export interface RenderOptions {
   templatesRoot?: string
+  /**
+   * Override the path to Render.java. Used when the bundled location differs
+   * from the source-tree location (e.g. installed npm package, VS Code
+   * extension shipping a different layout).
+   */
+  javaScriptPath?: string
 }
 
 export interface RenderResult {
   html: string
 }
 
-const javaScriptPath = resolve(
+const DEFAULT_JAVA_SCRIPT_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   'java',
   'Render.java',
 )
+
+interface SuccessEnvelope {
+  ok: true
+  html: string
+}
+
+interface ErrorEnvelope {
+  ok: false
+  error: StructuredError
+}
+
+type Envelope = SuccessEnvelope | ErrorEnvelope
 
 export function render(
   templatePath: string,
@@ -28,10 +48,12 @@ export function render(
     ? relative(templatesRoot, templatePath)
     : basename(templatePath)
 
+  const scriptPath = opts.javaScriptPath ?? DEFAULT_JAVA_SCRIPT_PATH
+
   return new Promise((resolveP, rejectP) => {
     const proc = spawn(
       'jbang',
-      [javaScriptPath, templatesRoot, templateName, fixturePath],
+      [scriptPath, templatesRoot, templateName, fixturePath],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     )
 
@@ -49,10 +71,40 @@ export function render(
 
     proc.on('error', rejectP)
     proc.on('close', (code) => {
-      if (code === 0) {
-        resolveP({ html: stdout })
+      if (code !== 0) {
+        rejectP(
+          new FreemarkerError({
+            type: 'internal',
+            message: stderr.trim() || `jbang exited with code ${code}`,
+            templatePath,
+          }),
+        )
+        return
+      }
+
+      let envelope: Envelope
+      try {
+        envelope = JSON.parse(stdout) as Envelope
+      } catch {
+        rejectP(
+          new FreemarkerError({
+            type: 'internal',
+            message: `unparseable response from jbang: ${stdout.slice(0, 200)}`,
+            templatePath,
+          }),
+        )
+        return
+      }
+
+      if (envelope.ok) {
+        resolveP({ html: envelope.html })
       } else {
-        rejectP(new Error(stderr.trim() || `jbang exited with code ${code}`))
+        if (envelope.error.stack) {
+          debugLog(
+            `render failed (${envelope.error.type}) for ${envelope.error.templatePath}\n${envelope.error.stack}`,
+          )
+        }
+        rejectP(new FreemarkerError(envelope.error))
       }
     })
   })

@@ -1,6 +1,10 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
+import { dirname, basename, relative, resolve } from 'node:path'
+
+export interface RenderOptions {
+  templatesRoot?: string
+}
 
 export interface RenderResult {
   html: string
@@ -15,11 +19,21 @@ const javaScriptPath = resolve(
 export function render(
   templatePath: string,
   fixturePath: string,
+  opts: RenderOptions = {},
 ): Promise<RenderResult> {
+  const templatesRoot = opts.templatesRoot
+    ? resolve(opts.templatesRoot)
+    : dirname(templatePath)
+  const templateName = opts.templatesRoot
+    ? relative(templatesRoot, templatePath)
+    : basename(templatePath)
+
   return new Promise((resolveP, rejectP) => {
-    const proc = spawn('jbang', [javaScriptPath, templatePath, fixturePath], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    const proc = spawn(
+      'jbang',
+      [javaScriptPath, templatesRoot, templateName, fixturePath],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
 
     let stdout = ''
     let stderr = ''

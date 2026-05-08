@@ -4,11 +4,15 @@ import { runRender } from './commands/render.ts'
 const HELP = `freemarker-preview — FreeMarker template previewer
 
 Usage:
-  freemarker-preview render <template> --data <fixture.json>
+  freemarker-preview render <template> [--fixture <name>] [--data <fixture.json>]
   freemarker-preview --help
 
 Commands:
   render    Render a template against fixture data and write HTML to stdout
+
+Render flags:
+  --fixture <name>   Select a fixture by name from <template>.fixtures/
+  --data <path>      Explicit fixture path (overrides convention)
 `
 
 async function main(argv: string[]): Promise<number> {

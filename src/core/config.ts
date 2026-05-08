@@ -14,20 +14,25 @@ export interface Config {
   locale: string
   inlineCss: boolean
   inlineCssOptions: Record<string, unknown>
-  previewMissingAs: PreviewMissingMode
+  /**
+   * When unset, each command applies its own default: `render` defaults to
+   * `'error'` (production fidelity for one-shot output); `dev` defaults to
+   * `'placeholder'` (better live-edit UX — undefined vars render visibly
+   * instead of breaking the preview).
+   */
+  previewMissingAs?: PreviewMissingMode
   dev: DevConfig
   configPath: string | null
 }
 
 const CONFIG_FILENAME = '.freemarkerrc.json'
 
-const DEFAULTS: Omit<Config, 'configPath'> = {
+const DEFAULTS: Omit<Config, 'configPath' | 'previewMissingAs'> = {
   templatesRoot: null,
   fixturesRoot: null,
   locale: 'en_US',
   inlineCss: true,
   inlineCssOptions: { preserveMediaQueries: true },
-  previewMissingAs: 'error',
   dev: { port: 5173, open: true },
 }
 

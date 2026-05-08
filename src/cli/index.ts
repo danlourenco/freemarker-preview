@@ -14,14 +14,26 @@ Commands:
   render    Render a template against fixture data and write HTML to stdout
 
 Render flags:
-  --fixture <name>   Select a fixture by name from <template>.fixtures/
-  --data <path>      Explicit fixture path (overrides convention)
-  --json             Emit a structured error envelope to stderr on failure
-  --no-inline-css    Skip the post-render CSS inlining pass
+  --fixture <name>     Select a fixture by name from <template>.fixtures/
+  --data <path>        Explicit fixture path (overrides convention)
+  --json               Emit a structured error envelope to stderr on failure
+  --no-inline-css      Skip the post-render CSS inlining pass
+  --missing <mode>     error | placeholder | empty (default: error)
 
 Dev flags:
-  --port N           Preferred port (walks +5 if busy). Defaults to 5173.
-  --no-open          Do not auto-open the browser
+  --port N             Preferred port (walks +5 if busy). Defaults to 5173.
+  --no-open            Do not auto-open the browser
+  --missing <mode>     error | placeholder | empty (default: placeholder)
+
+Missing-variable modes:
+  error        Default for render. FreeMarker strict mode — undefined
+               references throw. Surfaces typos loudly. Right for CI / one-shot
+               output going to email pipelines.
+  placeholder  Default for dev. Render <span class="fmp-missing">‹path›</span>
+               at the reference site. Preview never breaks; missing values are
+               visible as red pills inline.
+  empty        Replace undefined references with empty strings. Quietest mode;
+               useful for screenshot capture of partially-filled fixtures.
 `
 
 async function main(argv: string[]): Promise<number> {

@@ -1,11 +1,26 @@
 import { dirname, resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
-import { render } from '../../core/render.ts'
+import { render, type PreviewMissingAs } from '../../core/render.ts'
 import { resolveFixture } from '../../core/fixtures.ts'
 import { loadConfig } from '../../core/config.ts'
 import { FreemarkerError } from '../../core/errors.ts'
 import { formatError } from '../../core/format-error.ts'
 import { inlineCss } from '../../core/inline.ts'
+
+const VALID_MISSING_MODES: readonly PreviewMissingAs[] = [
+  'error',
+  'placeholder',
+  'empty',
+]
+
+function parseMissingFlag(value: string | undefined): PreviewMissingAs {
+  if (!VALID_MISSING_MODES.includes(value as PreviewMissingAs)) {
+    throw new Error(
+      `--missing must be one of ${VALID_MISSING_MODES.join(' | ')} (got ${value})`,
+    )
+  }
+  return value as PreviewMissingAs
+}
 
 export interface RenderArgs {
   template: string
@@ -13,6 +28,7 @@ export interface RenderArgs {
   data?: string
   json: boolean
   noInlineCss: boolean
+  missing?: PreviewMissingAs
 }
 
 export function parseRenderArgs(argv: string[]): RenderArgs {
@@ -21,6 +37,7 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
   let data: string | undefined
   let json = false
   let noInlineCss = false
+  let missing: PreviewMissingAs | undefined
 
   let i = 0
   while (i < argv.length) {
@@ -45,6 +62,11 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
       i += 1
       continue
     }
+    if (arg === '--missing') {
+      missing = parseMissingFlag(argv[i + 1])
+      i += 2
+      continue
+    }
     if (!template && arg && !arg.startsWith('--')) {
       template = arg
       i += 1
@@ -55,7 +77,7 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
 
   if (!template) throw new Error('render: missing <template> argument')
 
-  return { template, fixture, data, json, noInlineCss }
+  return { template, fixture, data, json, noInlineCss, missing }
 }
 
 function emitFailure(err: unknown, json: boolean, templatePath?: string): void {
@@ -139,17 +161,19 @@ export async function runRender(argv: string[]): Promise<number> {
   }
 
   const shouldInline = !args.noInlineCss && cfg.inlineCss
+  const missingMode: PreviewMissingAs =
+    args.missing ?? cfg.previewMissingAs ?? 'error'
 
-  if (cfg.previewMissingAs !== 'error') {
+  if (missingMode !== 'error') {
     process.stderr.write(
-      `note: previewMissingAs="${cfg.previewMissingAs}" — preview diverges from production strict-mode behavior\n`,
+      `note: --missing=${missingMode} — preview diverges from production strict-mode behavior\n`,
     )
   }
 
   try {
     const { html } = await render(templatePath, fixturePath, {
       templatesRoot,
-      previewMissingAs: cfg.previewMissingAs,
+      previewMissingAs: missingMode,
     })
     const out = shouldInline ? inlineCss(html, cfg.inlineCssOptions) : html
     process.stdout.write(out)

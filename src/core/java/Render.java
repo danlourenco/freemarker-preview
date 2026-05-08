@@ -12,8 +12,10 @@ import freemarker.template.TemplateNotFoundException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -30,9 +32,20 @@ import java.util.stream.Collectors;
 public class Render {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
+        if (args.length >= 1 && "--daemon".equals(args[0])) {
+            if (args.length != 2) {
+                System.err.println("usage: Render --daemon <templatesRoot>");
+                System.exit(2);
+                return;
+            }
+            runDaemon(new File(args[1]));
+            return;
+        }
+
         if (args.length != 3) {
             System.err.println("usage: Render <templatesRoot> <templateName> <fixturePath>");
+            System.err.println("       Render --daemon <templatesRoot>");
             System.exit(2);
             return;
         }
@@ -43,15 +56,50 @@ public class Render {
         String templatePath = new File(templatesRoot, templateName).getAbsolutePath();
 
         try {
-            String html = renderToString(templatesRoot, templateName, fixtureFile);
-            emit(Map.of("ok", true, "html", html));
+            Configuration cfg = freshConfig(templatesRoot);
+            String html = renderWithConfig(cfg, templateName, fixtureFile);
+            emit(envelope(null, Map.of("ok", true, "html", html)));
         } catch (Throwable t) {
-            emit(toErrorEnvelope(t, templatePath));
+            emit(envelope(null, errorBody(t, templatePath)));
         }
     }
 
-    private static String renderToString(File templatesRoot, String templateName, File fixtureFile)
-            throws IOException, TemplateException {
+    private static void runDaemon(File templatesRoot) throws Exception {
+        Configuration cfg = freshConfig(templatesRoot);
+
+        BufferedReader in = new BufferedReader(
+            new InputStreamReader(System.in, StandardCharsets.UTF_8)
+        );
+
+        String line;
+        while ((line = in.readLine()) != null) {
+            if (line.isEmpty()) continue;
+
+            String id = null;
+            String templateName = null;
+            String fixturePath = null;
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> req = MAPPER.readValue(line, Map.class);
+                id = String.valueOf(req.get("id"));
+                templateName = (String) req.get("templateName");
+                fixturePath = (String) req.get("fixturePath");
+            } catch (Exception parseEx) {
+                emit(envelope(id, errorBody(parseEx, "")));
+                continue;
+            }
+
+            String templatePath = new File(templatesRoot, templateName).getAbsolutePath();
+            try {
+                String html = renderWithConfig(cfg, templateName, new File(fixturePath));
+                emit(envelope(id, Map.of("ok", true, "html", html)));
+            } catch (Throwable t) {
+                emit(envelope(id, errorBody(t, templatePath)));
+            }
+        }
+    }
+
+    private static Configuration freshConfig(File templatesRoot) throws IOException {
         Configuration cfg = new Configuration(Configuration.VERSION_2_3_34);
         cfg.setDirectoryForTemplateLoading(templatesRoot);
         cfg.setDefaultEncoding("UTF-8");
@@ -59,19 +107,31 @@ public class Render {
         cfg.setLocale(Locale.US);
         cfg.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         cfg.setRecognizeStandardFileExtensions(true);
+        return cfg;
+    }
 
+    private static String renderWithConfig(Configuration cfg, String templateName, File fixtureFile)
+            throws IOException, TemplateException {
         @SuppressWarnings("unchecked")
         Map<String, Object> raw = MAPPER.readValue(fixtureFile, Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) coerceIsoDates(raw);
 
+        cfg.clearTemplateCache();
         Template template = cfg.getTemplate(templateName);
         StringWriter out = new StringWriter();
         template.process(data, out);
         return out.toString();
     }
 
-    private static Map<String, Object> toErrorEnvelope(Throwable t, String templatePath) {
+    private static Map<String, Object> envelope(String id, Map<String, Object> body) {
+        Map<String, Object> env = new LinkedHashMap<>();
+        if (id != null) env.put("id", id);
+        env.putAll(body);
+        return env;
+    }
+
+    private static Map<String, Object> errorBody(Throwable t, String templatePath) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("type", classify(t));
         error.put("message", extractMessage(t));
@@ -82,10 +142,10 @@ public class Render {
         error.put("templatePath", templatePath);
         error.put("stack", stackTrace(t));
 
-        Map<String, Object> env = new LinkedHashMap<>();
-        env.put("ok", false);
-        env.put("error", error);
-        return env;
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("ok", false);
+        body.put("error", error);
+        return body;
     }
 
     private static String classify(Throwable t) {

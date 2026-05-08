@@ -6,6 +6,7 @@ export type FreemarkerErrorType =
   | 'fixture-read'
   | 'fixture-parse'
   | 'internal'
+  | 'daemon-crash'
 
 export interface StructuredError {
   type: FreemarkerErrorType

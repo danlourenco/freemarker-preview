@@ -10,10 +10,25 @@
 <header class="shell-header">
   <div class="shell-title">freemarker-preview</div>
   <div class="shell-meta" id="meta"></div>
+  <div class="shell-status" id="status" data-state="idle" title="idle">
+    <span class="dot"></span>
+    <span class="label" id="status-label">idle</span>
+  </div>
 </header>
 <main class="shell-main">
-  <div class="iframe-wrap">
+  <div class="iframe-wrap" id="iframe-wrap">
     <iframe id="preview" title="email preview"></iframe>
+    <div class="overlay" id="overlay" hidden>
+      <div class="overlay-card">
+        <button type="button" class="overlay-dismiss" id="overlay-dismiss" title="dismiss (reveals previous render)">&times;</button>
+        <div class="overlay-header">
+          <span class="overlay-type" id="overlay-type"></span>
+          <span class="overlay-location" id="overlay-location"></span>
+        </div>
+        <div class="overlay-message" id="overlay-message"></div>
+        <pre class="overlay-snippet" id="overlay-snippet"></pre>
+      </div>
+    </div>
   </div>
 </main>
 <script src="/shell.js"></script>

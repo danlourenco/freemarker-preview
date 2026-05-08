@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 import { RenderDaemon } from '../core/daemon.ts'
 import { resolveFixture } from '../core/fixtures.ts'
 import { FreemarkerError } from '../core/errors.ts'
+import { extractSnippet, type Snippet } from '../core/format-error.ts'
 import { Watcher } from './watcher.ts'
 
 export interface DevServerOptions {
@@ -191,6 +192,7 @@ export class DevServer {
       res.statusCode = 500
       res.setHeader('content-type', 'application/json; charset=utf-8')
       const fmErr = err instanceof FreemarkerError ? err : null
+      const snippet = fmErr ? await readSnippet(fmErr) : undefined
       const body = fmErr
         ? {
             ok: false,
@@ -200,6 +202,7 @@ export class DevServer {
               line: fmErr.line,
               column: fmErr.column,
               templatePath: fmErr.templatePath,
+              snippet,
             },
           }
         : {
@@ -239,6 +242,16 @@ export class DevServer {
     for (const client of this.sseClients) {
       try { client.write(message) } catch { /* dropped */ }
     }
+  }
+}
+
+async function readSnippet(err: FreemarkerError): Promise<Snippet | undefined> {
+  if (!err.line || !err.templatePath) return undefined
+  try {
+    const source = await readFile(err.templatePath, 'utf8')
+    return extractSnippet(source, err.line)
+  } catch {
+    return undefined
   }
 }
 

@@ -1,11 +1,17 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, parse, resolve } from 'node:path'
 
+export interface DevConfig {
+  port: number
+  open: boolean
+}
+
 export interface Config {
   templatesRoot: string | null
   fixturesRoot: string | null
   locale: string
   inlineCss: boolean
+  dev: DevConfig
   configPath: string | null
 }
 
@@ -16,6 +22,7 @@ const DEFAULTS: Omit<Config, 'configPath'> = {
   fixturesRoot: null,
   locale: 'en_US',
   inlineCss: true,
+  dev: { port: 5173, open: true },
 }
 
 export function loadConfig(cwd: string): Config {
@@ -32,7 +39,12 @@ export function loadConfig(cwd: string): Config {
       `config error in ${configPath}: ${(err as Error).message}`,
     )
   }
-  return { ...DEFAULTS, ...parsed, configPath }
+  return {
+    ...DEFAULTS,
+    ...parsed,
+    dev: { ...DEFAULTS.dev, ...(parsed.dev ?? {}) },
+    configPath,
+  }
 }
 
 function findConfigFile(start: string): string | null {

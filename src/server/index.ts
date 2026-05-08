@@ -139,6 +139,9 @@ export class DevServer {
       if (pathname === '/api/discover') {
         return await this.serveDiscover(res)
       }
+      if (pathname === '/api/manifest') {
+        return await this.serveManifest(res)
+      }
 
       res.statusCode = 404
       res.end('not found')
@@ -253,6 +256,14 @@ export class DevServer {
     res.end(JSON.stringify({ firstTemplate: first }))
   }
 
+  private async serveManifest(res: ServerResponse): Promise<void> {
+    const templates = await buildManifest(this.templatesRoot)
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json; charset=utf-8')
+    res.setHeader('cache-control', 'no-store')
+    res.end(JSON.stringify({ templates }))
+  }
+
   private broadcastReload(): void {
     const message = `data: ${JSON.stringify({ type: 'reload' })}\n\n`
     for (const client of this.sseClients) {
@@ -272,6 +283,54 @@ async function readSnippet(err: FreemarkerError): Promise<Snippet | undefined> {
 }
 
 async function firstTemplateUnder(root: string): Promise<string | null> {
+  const found = await walkTemplates(root)
+  return found[0] ?? null
+}
+
+interface ManifestTemplate {
+  name: string
+  fixtures: string[]
+}
+
+async function buildManifest(root: string): Promise<ManifestTemplate[]> {
+  const { readdir, stat } = await import('node:fs/promises')
+  const templateNames = await walkTemplates(root)
+  const out: ManifestTemplate[] = []
+  for (const name of templateNames) {
+    const tplAbs = join(root, name)
+    const stem = basenameNoExt(name)
+    const dir = name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : ''
+    const fixturesDirRel = dir ? `${dir}/${stem}.fixtures` : `${stem}.fixtures`
+    const fixturesDirAbs = join(root, fixturesDirRel)
+
+    let fixtures: string[] = []
+    try {
+      const s = await stat(fixturesDirAbs)
+      if (s.isDirectory()) {
+        const entries = await readdir(fixturesDirAbs)
+        fixtures = entries
+          .filter((f) => f.endsWith('.json'))
+          .map((f) => f.replace(/\.json$/, ''))
+          .sort()
+      }
+    } catch {
+      // no .fixtures/ directory — try sibling fallback
+      const siblingRel = dir ? `${dir}/${stem}.json` : `${stem}.json`
+      const siblingAbs = join(root, siblingRel)
+      try {
+        await stat(siblingAbs)
+        fixtures = [stem]
+      } catch {
+        // no fixture at all
+      }
+    }
+    out.push({ name, fixtures })
+    void tplAbs
+  }
+  return out
+}
+
+async function walkTemplates(root: string): Promise<string[]> {
   const { readdir } = await import('node:fs/promises')
   const found: string[] = []
   async function walk(dir: string, rel: string): Promise<void> {
@@ -289,5 +348,12 @@ async function firstTemplateUnder(root: string): Promise<string | null> {
   }
   await walk(root, '')
   found.sort()
-  return found[0] ?? null
+  return found
+}
+
+function basenameNoExt(name: string): string {
+  const slash = name.lastIndexOf('/')
+  const base = slash >= 0 ? name.slice(slash + 1) : name
+  const dot = base.lastIndexOf('.')
+  return dot > 0 ? base.slice(0, dot) : base
 }

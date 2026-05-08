@@ -1,14 +1,17 @@
 (function () {
   const iframe = document.getElementById('preview');
-  const meta = document.getElementById('meta');
   const status = document.getElementById('status');
   const statusLabel = document.getElementById('status-label');
+  const sidebar = document.getElementById('templates');
+  const fixtures = document.getElementById('fixtures');
   const overlay = document.getElementById('overlay');
   const overlayType = document.getElementById('overlay-type');
   const overlayLocation = document.getElementById('overlay-location');
   const overlayMessage = document.getElementById('overlay-message');
   const overlaySnippet = document.getElementById('overlay-snippet');
   const overlayDismiss = document.getElementById('overlay-dismiss');
+
+  let manifest = { templates: [] };
 
   function setStatus(state) {
     status.dataset.state = state;
@@ -24,12 +27,13 @@
     };
   }
 
-  function setMeta(p) {
-    meta.textContent = p.template
-      ? p.fixture
-        ? p.template + ' · ' + p.fixture
-        : p.template
-      : '(no template selected)';
+  function setParams(updates) {
+    const u = new URL(window.location.href);
+    for (const [k, v] of Object.entries(updates)) {
+      if (v == null) u.searchParams.delete(k);
+      else u.searchParams.set(k, String(v));
+    }
+    window.history.replaceState(null, '', u.toString());
   }
 
   function escapeHtml(s) {
@@ -39,9 +43,60 @@
       .replace(/>/g, '&gt;');
   }
 
-  function hideOverlay() {
-    overlay.hidden = true;
+  /* ---------- sidebar + fixture picker ---------- */
+
+  function renderSidebar() {
+    const p = getParams();
+    sidebar.innerHTML = '';
+    for (const tpl of manifest.templates) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'template-row';
+      btn.textContent = tpl.name;
+      btn.title = tpl.name;
+      if (tpl.name === p.template) btn.setAttribute('aria-current', 'true');
+      btn.addEventListener('click', () => selectTemplate(tpl.name));
+      li.appendChild(btn);
+      sidebar.appendChild(li);
+    }
   }
+
+  function renderFixturePicker() {
+    const p = getParams();
+    const tpl = manifest.templates.find((t) => t.name === p.template);
+    fixtures.innerHTML = '';
+    if (!tpl || tpl.fixtures.length === 0) return;
+    for (const fix of tpl.fixtures) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fixture-pill';
+      btn.role = 'tab';
+      btn.textContent = fix;
+      btn.setAttribute('aria-selected', String(fix === p.fixture));
+      btn.addEventListener('click', () => selectFixture(fix));
+      fixtures.appendChild(btn);
+    }
+  }
+
+  function selectTemplate(name) {
+    const tpl = manifest.templates.find((t) => t.name === name);
+    const fixture = tpl && tpl.fixtures.length > 0 ? tpl.fixtures[0] : null;
+    setParams({ template: name, fixture });
+    renderSidebar();
+    renderFixturePicker();
+    refresh();
+  }
+
+  function selectFixture(name) {
+    setParams({ fixture: name });
+    renderFixturePicker();
+    refresh();
+  }
+
+  /* ---------- error overlay ---------- */
+
+  function hideOverlay() { overlay.hidden = true; }
 
   function showError(error) {
     overlayType.textContent = error.type || 'error';
@@ -73,16 +128,16 @@
       overlaySnippet.textContent = '';
       overlaySnippet.hidden = true;
     }
-
     overlay.hidden = false;
   }
 
   overlayDismiss.addEventListener('click', hideOverlay);
 
+  /* ---------- render pipeline ---------- */
+
   let inFlight = null;
   async function refresh() {
     const p = getParams();
-    setMeta(p);
     if (!p.template) return;
 
     if (inFlight) inFlight.abort();
@@ -123,24 +178,42 @@
     }
   }
 
-  async function ensureTemplateInUrl() {
-    const p = getParams();
-    if (p.template) return;
+  /* ---------- bootstrap + SSE ---------- */
+
+  async function loadManifest() {
     try {
-      const res = await fetch('/api/discover');
-      const data = await res.json();
-      if (data.firstTemplate) {
-        const u = new URL(window.location.href);
-        u.searchParams.set('template', data.firstTemplate);
-        window.history.replaceState(null, '', u.toString());
-      }
+      const res = await fetch('/api/manifest');
+      manifest = await res.json();
     } catch {
-      /* nothing to discover */
+      manifest = { templates: [] };
     }
   }
 
-  const events = new EventSource('/events');
-  events.onmessage = function () { refresh(); };
+  async function ensureTemplateInUrl() {
+    const p = getParams();
+    if (p.template) return;
+    if (manifest.templates.length === 0) return;
+    const first = manifest.templates[0];
+    const updates = { template: first.name };
+    if (first.fixtures.length > 0) updates.fixture = first.fixtures[0];
+    setParams(updates);
+  }
 
-  ensureTemplateInUrl().then(refresh);
+  async function bootstrap() {
+    await loadManifest();
+    await ensureTemplateInUrl();
+    renderSidebar();
+    renderFixturePicker();
+    await refresh();
+  }
+
+  const events = new EventSource('/events');
+  events.onmessage = async function () {
+    await loadManifest();
+    renderSidebar();
+    renderFixturePicker();
+    refresh();
+  };
+
+  bootstrap();
 })();

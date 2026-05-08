@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 import { runRender } from './commands/render.ts'
 import { runDev } from './commands/dev.ts'
+import { runShot } from './commands/shot.ts'
 
 const HELP = `freemarker-preview — FreeMarker template previewer
 
 Usage:
   freemarker-preview dev [--port N] [--no-open]
   freemarker-preview render <template> [--fixture <name>] [--data <fixture.json>] [--json]
+  freemarker-preview shot <template> [--fixture <name>] [--out file.png]
   freemarker-preview --help
 
 Commands:
   dev       Start a live-reloading dev server with iframe preview
   render    Render a template against fixture data and write HTML to stdout
+  shot      Capture a PNG screenshot of the rendered template
 
 Render flags:
   --fixture <name>     Select a fixture by name from <template>.fixtures/
@@ -24,6 +27,12 @@ Dev flags:
   --port N             Preferred port (walks +5 if busy). Defaults to 5173.
   --no-open            Do not auto-open the browser
   --missing <mode>     error | placeholder | empty (default: placeholder)
+
+Shot flags:
+  --fixture <name>     Select a fixture by name from <template>.fixtures/
+  --data <path>        Explicit fixture path (overrides convention)
+  --out <file.png>     Output path (defaults to <template>[-<fixture>].png)
+  --no-inline-css      Skip the post-render CSS inlining pass
 
 Missing-variable modes:
   error        Default for render. FreeMarker strict mode — undefined
@@ -46,6 +55,7 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === 'render') return runRender(rest)
   if (command === 'dev') return runDev(rest)
+  if (command === 'shot') return runShot(rest)
 
   process.stderr.write(`unknown command: ${command}\n`)
   process.stderr.write(HELP)

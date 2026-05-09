@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { detectProjectLayout } from './detect.ts'
@@ -7,7 +7,9 @@ import { detectProjectLayout } from './detect.ts'
 let scratch: string
 
 beforeEach(() => {
-  scratch = mkdtempSync(join(tmpdir(), 'fmp-detect-'))
+  // realpathSync resolves macOS /var → /private/var so tests don't trip over
+  // the symlink when comparing absolute paths.
+  scratch = realpathSync(mkdtempSync(join(tmpdir(), 'fmp-detect-')))
 })
 
 afterEach(() => {
@@ -22,7 +24,8 @@ describe('detectProjectLayout', () => {
     const got = detectProjectLayout(scratch)
 
     expect(got.kind).toBe('spring-boot')
-    expect(got.templatesRoot).toBe('src/main/resources/templates')
+    expect(got.projectRoot).toBe(scratch)
+    expect(got.templatesDir).toBe(join(scratch, 'src/main/resources/templates'))
   })
 
   test('Gradle + email-templates/', () => {
@@ -32,32 +35,39 @@ describe('detectProjectLayout', () => {
     const got = detectProjectLayout(scratch)
 
     expect(got.kind).toBe('spring-boot')
-    expect(got.templatesRoot).toBe('email-templates')
+    expect(got.templatesDir).toBe(join(scratch, 'email-templates'))
   })
 
-  test('Gradle Kotlin DSL + src/main/resources/email/', () => {
-    writeFileSync(join(scratch, 'build.gradle.kts'), '')
-    mkdirSync(join(scratch, 'src/main/resources/email'), { recursive: true })
+  test('walks up from a subdirectory to find the project root', () => {
+    writeFileSync(join(scratch, 'pom.xml'), '<project/>')
+    mkdirSync(join(scratch, 'src/main/resources/templates/email'), {
+      recursive: true,
+    })
 
-    const got = detectProjectLayout(scratch)
+    // Run detection from deep inside the templates subdir
+    const fromInside = join(scratch, 'src/main/resources/templates/email')
+    const got = detectProjectLayout(fromInside)
 
     expect(got.kind).toBe('spring-boot')
-    expect(got.templatesRoot).toBe('src/main/resources/email')
+    expect(got.projectRoot).toBe(scratch)
+    expect(got.templatesDir).toBe(join(scratch, 'src/main/resources/templates'))
   })
 
-  test('Spring Boot project but no templates dir → templatesRoot is null', () => {
+  test('Spring Boot project but no templates dir → templatesDir is null', () => {
     writeFileSync(join(scratch, 'pom.xml'), '<project/>')
 
     const got = detectProjectLayout(scratch)
 
     expect(got.kind).toBe('spring-boot')
-    expect(got.templatesRoot).toBeNull()
+    expect(got.projectRoot).toBe(scratch)
+    expect(got.templatesDir).toBeNull()
   })
 
-  test('No build files → kind is unknown, templatesRoot is null', () => {
+  test('No build files anywhere → kind unknown, projectRoot null', () => {
     const got = detectProjectLayout(scratch)
 
     expect(got.kind).toBe('unknown')
-    expect(got.templatesRoot).toBeNull()
+    expect(got.projectRoot).toBeNull()
+    expect(got.templatesDir).toBeNull()
   })
 })

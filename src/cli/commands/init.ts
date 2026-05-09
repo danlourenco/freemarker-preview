@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { detectProjectLayout } from '../../core/detect.ts'
 import { render } from '../../core/render.ts'
 
@@ -19,8 +19,6 @@ export function parseInitArgs(argv: string[]): InitArgs {
   return { force, noWarmup }
 }
 
-const PLACEHOLDER_TEMPLATES_ROOT = 'src/main/resources/templates'
-
 export async function runInit(argv: string[]): Promise<number> {
   const args = parseInitArgs(argv)
   const cwd = process.cwd()
@@ -34,7 +32,16 @@ export async function runInit(argv: string[]): Promise<number> {
   }
 
   const layout = detectProjectLayout(cwd)
-  const templatesRoot = layout.templatesRoot ?? PLACEHOLDER_TEMPLATES_ROOT
+  // Compute templatesRoot relative to cwd (where the config will be written).
+  // - If we found a templates dir, use the relative path from cwd to it. If
+  //   the user is already inside that dir, the result is "." which `dev` and
+  //   `render` resolve correctly.
+  // - If no templates dir was detected (no Spring Boot, or SB without
+  //   matching dirs), default to "." rather than a hardcoded placeholder so
+  //   the config is at least usable from where it was written.
+  const templatesRoot = layout.templatesDir
+    ? relative(cwd, layout.templatesDir) || '.'
+    : '.'
   const config = {
     templatesRoot,
     locale: 'en_US',
@@ -46,12 +53,15 @@ export async function runInit(argv: string[]): Promise<number> {
   process.stdout.write(`wrote ${configPath}\n`)
   process.stdout.write(`  templatesRoot: ${templatesRoot}\n`)
 
-  if (layout.kind === 'spring-boot' && layout.templatesRoot) {
-    process.stdout.write(`  detected: Spring Boot project\n`)
-  } else if (layout.templatesRoot === null) {
+  if (layout.kind === 'spring-boot' && layout.projectRoot) {
     process.stdout.write(
-      `  note: no templates directory detected — placeholder used.\n` +
-        `        edit .freemarkerrc.json to point at your templates.\n`,
+      `  detected: Spring Boot project at ${layout.projectRoot}\n`,
+    )
+  }
+  if (!layout.templatesDir) {
+    process.stdout.write(
+      `  note: no templates directory detected — defaulted to "." (cwd).\n` +
+        `        edit .freemarkerrc.json if your templates live elsewhere.\n`,
     )
   }
 

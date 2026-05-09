@@ -1,5 +1,5 @@
 import { dirname, resolve } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { render, type PreviewMissingAs } from '../../core/render.ts'
 import { resolveFixture } from '../../core/fixtures.ts'
 import { loadConfig } from '../../core/config.ts'
@@ -146,9 +146,14 @@ export async function runRender(argv: string[]): Promise<number> {
       ? resolve(dirname(cfg.configPath), cfg.templatesRoot)
       : undefined
 
-  const templatePath = templatesRoot
-    ? resolve(templatesRoot, args.template)
-    : resolve(args.template)
+  // Try cwd-relative first so `render foo.ftlh` works whether the user is
+  // sitting at the templates root or inside a subdirectory of it. Fall back
+  // to templatesRoot-relative resolution when the file isn't directly there.
+  const cwdResolved = resolve(args.template)
+  const templatePath =
+    existsSync(cwdResolved) || !templatesRoot
+      ? cwdResolved
+      : resolve(templatesRoot, args.template)
 
   let fixturePath: string
   try {

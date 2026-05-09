@@ -1,5 +1,5 @@
 import { dirname, basename, extname, resolve } from 'node:path'
-import { writeFile, readFileSync } from 'node:fs'
+import { writeFile, readFileSync, existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { render, type PreviewMissingAs } from '../../core/render.ts'
 import { resolveFixture } from '../../core/fixtures.ts'
@@ -90,9 +90,11 @@ export async function runShot(argv: string[]): Promise<number> {
       ? resolve(dirname(cfg.configPath), cfg.templatesRoot)
       : undefined
 
-  const templatePath = templatesRoot
-    ? resolve(templatesRoot, args.template)
-    : resolve(args.template)
+  const cwdResolved = resolve(args.template)
+  const templatePath =
+    existsSync(cwdResolved) || !templatesRoot
+      ? cwdResolved
+      : resolve(templatesRoot, args.template)
 
   let fixturePath: string
   try {

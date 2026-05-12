@@ -233,7 +233,7 @@ body {
 }
 
 .shell-sidebar {
-  flex: 0 0 220px;
+  flex: 0 0 280px;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   overflow-y: auto;
@@ -255,9 +255,12 @@ body {
   padding: 0;
 }
 
-.template-row {
-  display: block;
-  padding: 6px 16px;
+.template-row,
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 16px 4px 0;
   font-size: 12px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   cursor: pointer;
@@ -269,14 +272,42 @@ body {
   color: inherit;
   width: 100%;
   text-align: left;
+  line-height: 1.4;
 }
 
-.template-row:hover { background: var(--row-hover); }
+.template-row:hover,
+.folder-row:hover { background: var(--row-hover); }
 
 .template-row[aria-current="true"] {
   background: var(--row-active);
   color: var(--row-active-fg);
   font-weight: 600;
+}
+
+.tree-chevron {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.folder-row .folder-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.template-row .tree-spacer {
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.template-row .file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .shell-main {

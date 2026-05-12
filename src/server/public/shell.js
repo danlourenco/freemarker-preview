@@ -51,21 +51,124 @@
 
   /* ---------- sidebar + fixture picker ---------- */
 
+  // Persist which folders are open across reloads. The DOM gets re-rendered
+  // on every selection, so we serialise to sessionStorage rather than rely
+  // on the live `<details open>` attribute.
+  const FOLDER_STATE_KEY = 'fmp:expandedFolders';
+
+  function loadExpandedFolders() {
+    try {
+      const raw = sessionStorage.getItem(FOLDER_STATE_KEY);
+      return raw ? new Set(JSON.parse(raw)) : null;
+    } catch { return null; }
+  }
+
+  function saveExpandedFolders(set) {
+    try {
+      sessionStorage.setItem(FOLDER_STATE_KEY, JSON.stringify([...set]));
+    } catch { /* sessionStorage unavailable; that's fine */ }
+  }
+
+  /**
+   * Build a tree from the flat manifest.
+   *   templates: [{ name: "email/welcome.ftlh", fixtures: [...] }, ...]
+   */
+  function buildTree(templates) {
+    const root = { type: 'folder', name: '', path: '', children: {} };
+    for (const tpl of templates) {
+      const parts = tpl.name.split('/');
+      let node = root;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        const path = parts.slice(0, i + 1).join('/');
+        if (!node.children[part]) {
+          node.children[part] = { type: 'folder', name: part, path, children: {} };
+        }
+        node = node.children[part];
+      }
+      const fileName = parts[parts.length - 1];
+      node.children[fileName] = { type: 'file', name: fileName, path: tpl.name };
+    }
+    return root;
+  }
+
+  function sortedChildren(node) {
+    return Object.values(node.children).sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  function defaultExpanded(tree) {
+    const out = new Set();
+    (function walk(node) {
+      for (const child of Object.values(node.children)) {
+        if (child.type === 'folder') { out.add(child.path); walk(child); }
+      }
+    })(tree);
+    return out;
+  }
+
+  let expandedFolders = null;
+
+  function toggleFolder(path) {
+    if (expandedFolders.has(path)) expandedFolders.delete(path);
+    else expandedFolders.add(path);
+    saveExpandedFolders(expandedFolders);
+    renderSidebar();
+  }
+
   function renderSidebar() {
     const p = getParams();
     sidebar.innerHTML = '';
-    for (const tpl of manifest.templates) {
-      const li = document.createElement('li');
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'template-row';
-      btn.textContent = tpl.name;
-      btn.title = tpl.name;
-      if (tpl.name === p.template) btn.setAttribute('aria-current', 'true');
-      btn.addEventListener('click', () => selectTemplate(tpl.name));
-      li.appendChild(btn);
-      sidebar.appendChild(li);
+    const tree = buildTree(manifest.templates);
+
+    if (expandedFolders === null) {
+      expandedFolders = loadExpandedFolders() ?? defaultExpanded(tree);
     }
+
+    function emit(node, depth) {
+      for (const child of sortedChildren(node)) {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.paddingLeft = `${8 + depth * 14}px`;
+
+        if (child.type === 'folder') {
+          const expanded = expandedFolders.has(child.path);
+          btn.className = 'folder-row';
+          btn.setAttribute('aria-expanded', String(expanded));
+          const chev = document.createElement('span');
+          chev.className = 'tree-chevron';
+          chev.textContent = expanded ? '▾' : '▸';
+          const name = document.createElement('span');
+          name.className = 'folder-name';
+          name.textContent = child.name;
+          name.title = child.path;
+          btn.appendChild(chev);
+          btn.appendChild(name);
+          btn.addEventListener('click', () => toggleFolder(child.path));
+          li.appendChild(btn);
+          sidebar.appendChild(li);
+          if (expanded) emit(child, depth + 1);
+        } else {
+          btn.className = 'template-row';
+          const spacer = document.createElement('span');
+          spacer.className = 'tree-spacer';
+          const name = document.createElement('span');
+          name.className = 'file-name';
+          name.textContent = child.name;
+          btn.appendChild(spacer);
+          btn.appendChild(name);
+          btn.title = child.path;
+          if (child.path === p.template) btn.setAttribute('aria-current', 'true');
+          btn.addEventListener('click', () => selectTemplate(child.path));
+          li.appendChild(btn);
+          sidebar.appendChild(li);
+        }
+      }
+    }
+    emit(tree, 0);
   }
 
   function renderFixturePicker() {

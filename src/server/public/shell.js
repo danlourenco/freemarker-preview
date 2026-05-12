@@ -132,6 +132,19 @@
     if (document.activeElement !== widthCustom) {
       widthCustom.value = custom;
     }
+
+    // Slot the iframe into the phone chrome (DaisyUI mockup-phone) when in
+    // 375 mode; otherwise back into the plain container. Reparenting causes
+    // a one-time iframe reload in some browsers, which is acceptable — the
+    // user explicitly toggled width.
+    const phoneMode = active === '375';
+    const phoneDisplay = document.getElementById('phone-display');
+    const previewPlain = document.getElementById('preview-plain');
+    iframeWrap.dataset.mode = phoneMode ? 'phone' : 'plain';
+    const targetContainer = phoneMode ? phoneDisplay : previewPlain;
+    if (iframe.parentElement !== targetContainer) {
+      targetContainer.appendChild(iframe);
+    }
   }
 
   widthBtns.forEach((btn) => {

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>freemarker-preview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="/shell.css">
 </head>
 <body>
@@ -33,8 +35,16 @@
     <ul class="template-list" id="templates"></ul>
   </aside>
   <main class="shell-main">
-    <div class="iframe-wrap" id="iframe-wrap">
-      <iframe id="preview" title="email preview"></iframe>
+    <div class="iframe-wrap" id="iframe-wrap" data-mode="plain">
+      <div class="preview-phone">
+        <div class="mockup-phone">
+          <div class="mockup-phone-camera"></div>
+          <div class="mockup-phone-display" id="phone-display"></div>
+        </div>
+      </div>
+      <div class="preview-plain" id="preview-plain">
+        <iframe id="preview" title="email preview"></iframe>
+      </div>
       <div class="overlay" id="overlay" hidden>
         <div class="overlay-card">
           <button type="button" class="overlay-dismiss" id="overlay-dismiss" title="dismiss (reveals previous render)">&times;</button>

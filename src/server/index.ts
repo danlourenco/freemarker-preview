@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect as netConnect } from 'node:net'
 import { fileURLToPath } from 'node:url'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { RenderDaemon } from '../core/daemon.ts'
-import { resolveFixture } from '../core/fixtures.ts'
+import { resolveFixtureOrEmpty } from '../core/fixtures.ts'
 import { FreemarkerError } from '../core/errors.ts'
 import { extractSnippet, type Snippet } from '../core/format-error.ts'
 import { inlineCss } from '../core/inline.ts'
@@ -41,6 +43,8 @@ export class DevServer {
   private server: Server | null = null
   private sseClients = new Set<ServerResponse>()
   private actualPort: number | null = null
+  private emptyFixtureDir: string | null = null
+  private emptyFixturePath: string | null = null
 
   constructor(opts: DevServerOptions) {
     this.templatesRoot = resolve(opts.templatesRoot)
@@ -55,6 +59,13 @@ export class DevServer {
   }
 
   async start(): Promise<{ url: string; port: number }> {
+    // Pre-create a {} fixture file once. Templates without a fixture render
+    // against this so the preview still shows something instead of a
+    // fixture-read error blocking everything.
+    this.emptyFixtureDir = mkdtempSync(join(tmpdir(), 'fmp-empty-fixture-'))
+    this.emptyFixturePath = join(this.emptyFixtureDir, 'empty.json')
+    writeFileSync(this.emptyFixturePath, '{}', 'utf8')
+
     this.daemon = new RenderDaemon({
       templatesRoot: this.templatesRoot,
       previewMissingAs: this.missingMode,
@@ -92,6 +103,11 @@ export class DevServer {
     this.watcher = null
     await this.daemon?.shutdown()
     this.daemon = null
+    if (this.emptyFixtureDir) {
+      rmSync(this.emptyFixtureDir, { recursive: true, force: true })
+      this.emptyFixtureDir = null
+      this.emptyFixturePath = null
+    }
   }
 
   private listenWithPortWalk(server: Server): Promise<number> {
@@ -163,7 +179,18 @@ export class DevServer {
     const templatePath = resolve(this.templatesRoot, templateName)
     let fixturePath: string
     try {
-      fixturePath = resolveFixture(templatePath, fixtureName)
+      const resolved = resolveFixtureOrEmpty(
+        templatePath,
+        fixtureName,
+        this.emptyFixturePath!,
+      )
+      fixturePath = resolved.path
+      if (resolved.fallback) {
+        // Surface the fact that this render used {} via a response header.
+        // The client can read it and show a non-blocking notice. Headers
+        // don't disturb the rendered HTML body itself.
+        res.setHeader('x-fmp-fixtureless', '1')
+      }
     } catch (err) {
       res.statusCode = 404
       res.setHeader('content-type', 'application/json; charset=utf-8')

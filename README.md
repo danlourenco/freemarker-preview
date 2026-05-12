@@ -231,6 +231,14 @@ src/main/resources/templates/
 
 ISO-8601 strings in fixture JSON auto-coerce to `java.util.Date` on the Java side, so `${createdAt?datetime}` and `${createdAt?string("yyyy-MM-dd")}` work without special setup.
 
+### No fixture? `dev` still renders
+
+In `dev`, templates without any fixture render against `{}`. Combined with the default `placeholder` missing-variable mode, every `${reference}` shows up as a red pill inline so you can see exactly which fields the template wants. No more "no fixture found" blocking the preview.
+
+`render` and `shot` still require an explicit fixture — they're for one-shot output and silently substituting `{}` would produce misleading results. Pass `--data` or wire up a fixture file when you need them.
+
+When a `dev` render falls back to the empty fixture, the response carries an `x-fmp-fixtureless: 1` header so tooling/UI can react.
+
 ## Missing-variable modes
 
 | Mode | Behavior | When to use |

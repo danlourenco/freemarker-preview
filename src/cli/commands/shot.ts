@@ -1,4 +1,4 @@
-import { dirname, basename, extname, resolve } from 'node:path'
+import { basename, extname, resolve } from 'node:path'
 import { writeFile, readFileSync, existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { render, type PreviewMissingAs } from '../../core/render.ts'
@@ -85,10 +85,9 @@ export async function runShot(argv: string[]): Promise<number> {
   }
 
   const cfg = loadConfig(process.cwd())
-  const templatesRoot =
-    cfg.templatesRoot && cfg.configPath
-      ? resolve(dirname(cfg.configPath), cfg.templatesRoot)
-      : undefined
+  const templatesRoot = cfg.templatesRoot
+    ? resolve(cfg.projectRoot, cfg.templatesRoot)
+    : undefined
 
   const cwdResolved = resolve(args.template)
   const templatePath =

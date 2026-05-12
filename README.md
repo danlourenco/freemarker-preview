@@ -39,7 +39,7 @@ npm install -g freemarker-preview
 
 ```bash
 # In your Spring Boot project root:
-npx freemarker-preview init     # scaffolds .freemarkerrc.json + pre-warms JBang
+npx freemarker-preview init     # registers this project in your user-level config + pre-warms JBang
 npx freemarker-preview dev      # browser opens to live-reloading preview
 ```
 
@@ -49,18 +49,26 @@ Edit any `.ftlh` template or fixture JSON; the iframe swaps in within ~100ms via
 
 ### `init`
 
-Scaffolds `.freemarkerrc.json` in the current directory, detecting Spring Boot conventions to pre-fill `templatesRoot`, and pre-warms the JBang FreeMarker dep cache so the first real render is fast.
+Registers the current project in your **user-level project registry** (see [Config](#config)), then pre-warms the JBang FreeMarker dep cache so the first real render is fast. No file is written into the project tree — your config travels with you, not the repo.
 
 ```bash
 freemarker-preview init [--force] [--no-warmup]
 ```
 
+Flow:
+
+1. Detect the project root by walking up for `pom.xml`, `build.gradle`, or `build.gradle.kts`.
+2. Probe standard templates locations (`src/main/resources/templates`, `…/email-templates`, `…/email`, `email-templates/`). If found, prompt to use the detected directory.
+3. Otherwise (or on rejection), launch an interactive directory picker rooted at the project root. Arrow keys navigate; `[ select this directory ]` confirms.
+4. Save the entry to the user registry, keyed by absolute project root.
+5. Pre-warm JBang (skippable with `--no-warmup`).
+
 | Flag | Behavior |
 |---|---|
-| `--force` | Overwrite an existing `.freemarkerrc.json`. |
+| `--force` | Overwrite an existing registry entry without prompting. |
 | `--no-warmup` | Skip the JBang dep pre-warm step. |
 
-Detected directories (first match wins): `src/main/resources/templates`, `src/main/resources/email-templates`, `src/main/resources/email`, `email-templates/`.
+Run `init` from anywhere inside your project — including a templates subdirectory. The detected project root is always the directory containing the build file.
 
 ### `dev`
 
@@ -134,9 +142,50 @@ Chromium isn't installed for Playwright. Run the suggested command and retry.
 
 A render failure refuses to write any output and exits non-zero with the same pretty stderr as `render`.
 
-## Config: `.freemarkerrc.json`
+## Config
 
-Optional — `dev` and `render` work zero-config in simple cases (assumes `templatesRoot = cwd`). The loader walks up from `cwd` to find the first `.freemarkerrc.json`.
+There are two ways to configure `freemarker-preview`. The primary one is the **user-level project registry** written by `init`. The legacy `.freemarkerrc.json` keeps working as a fallback for teams that prefer committed config.
+
+### Resolution order
+
+Each command runs `loadConfig(cwd)`, which:
+
+1. Walks up from `cwd`; if any ancestor is a key in the user registry, uses that entry. Longest-prefix match wins (so a registered nested project beats its parent).
+2. Else walks up looking for `.freemarkerrc.json` (legacy behavior).
+3. Else uses defaults with `projectRoot = cwd`.
+
+CLI commands resolve relative paths (`templatesRoot`, `fixturesRoot`) against `cfg.projectRoot` — the registry key, the directory containing `.freemarkerrc.json`, or `cwd`.
+
+### User-level project registry
+
+Written by `init`. Lives outside any project tree, keyed by absolute project root path:
+
+| Platform | Path |
+|---|---|
+| macOS / Linux | `$XDG_CONFIG_HOME/freemarker-preview/projects.json` (default `~/.config/freemarker-preview/projects.json`) |
+| Windows | `%APPDATA%\freemarker-preview\projects.json` |
+| Test/CI override | `FMP_REGISTRY_PATH=/path/to/projects.json` |
+
+```json
+{
+  "projects": {
+    "/Users/dlo/Dev/agreement": {
+      "templatesRoot": "src/main/resources/templates/email",
+      "freemarker": { "number_format": "#,##0.00" },
+      "previewMissingAs": "placeholder"
+    },
+    "/Users/dlo/Dev/another-app": {
+      "templatesRoot": "src/main/resources/templates"
+    }
+  }
+}
+```
+
+Per-project entry mirrors the `.freemarkerrc.json` schema below (minus `configPath`). Edit by hand or re-run `init` (use `--force` to skip the overwrite prompt).
+
+### Legacy: `.freemarkerrc.json` (committed)
+
+Drop this into your project root if you'd rather commit config to the repo. The loader walks up from `cwd` to find it; relative paths resolve against its directory.
 
 ```json
 {
@@ -152,12 +201,13 @@ Optional — `dev` and `render` work zero-config in simple cases (assumes `templ
 
 | Key | Default | Notes |
 |---|---|---|
-| `templatesRoot` | `cwd` | Used as FreeMarker's `TemplateLoader` directory. Resolved relative to the config file. |
+| `templatesRoot` | `cwd` | Used as FreeMarker's `TemplateLoader` directory. Resolved relative to `projectRoot`. |
 | `fixturesRoot` | `null` | Optional separate fixtures tree (watcher follows both). |
 | `locale` | `"en_US"` | FreeMarker `Configuration.setLocale`. |
 | `inlineCss` | `true` | Run `juice` post-render. |
 | `inlineCssOptions` | `{ preserveMediaQueries: true }` | Forwarded to `juice`. |
 | `previewMissingAs` | (per-command) | When unset, `render` defaults to `error`, `dev` defaults to `placeholder`. |
+| `freemarker` | `{}` | Forwarded to `Configuration.setSetting(key, value)` on the Java side (e.g. `number_format`, `date_format`). |
 | `dev.port` | `5173` | Walks +5 if busy. |
 | `dev.open` | `true` | Auto-open browser on `dev` start. |
 

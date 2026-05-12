@@ -13,6 +13,7 @@
     "node": ">=22.6.0"
   },
   "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
     "chokidar": "^4.0.1",
     "juice": "^11.0.0",
     "open": "^10.1.0"

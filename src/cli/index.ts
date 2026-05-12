@@ -15,7 +15,7 @@ Usage:
   freemarker-preview --help
 
 Commands:
-  init      Scaffold .freemarkerrc.json (Spring Boot heuristics + JBang pre-warm)
+  init      Register the current project in your user-level registry (interactive picker + JBang pre-warm)
   dev       Start a live-reloading dev server with iframe preview
   render    Render a template against fixture data and write HTML to stdout
   shot      Capture a PNG screenshot of the rendered template

@@ -1,4 +1,4 @@
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import open from 'open'
 import { DevServer } from '../../server/index.ts'
 import { loadConfig } from '../../core/config.ts'
@@ -68,14 +68,12 @@ export async function runDev(argv: string[]): Promise<number> {
   }
 
   const cfg = loadConfig(process.cwd())
-  const templatesRoot =
-    cfg.templatesRoot && cfg.configPath
-      ? resolve(dirname(cfg.configPath), cfg.templatesRoot)
-      : process.cwd()
-  const fixturesRoot =
-    cfg.fixturesRoot && cfg.configPath
-      ? resolve(dirname(cfg.configPath), cfg.fixturesRoot)
-      : null
+  const templatesRoot = cfg.templatesRoot
+    ? resolve(cfg.projectRoot, cfg.templatesRoot)
+    : process.cwd()
+  const fixturesRoot = cfg.fixturesRoot
+    ? resolve(cfg.projectRoot, cfg.fixturesRoot)
+    : null
 
   // dev defaults to 'placeholder' so undefined variables render as visible
   // pills inline rather than blocking the whole preview with the error overlay.

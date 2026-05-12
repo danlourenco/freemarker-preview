@@ -1,4 +1,4 @@
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
 import { render, type PreviewMissingAs } from '../../core/render.ts'
 import { resolveFixture } from '../../core/fixtures.ts'
@@ -141,10 +141,9 @@ export async function runRender(argv: string[]): Promise<number> {
     return 1
   }
 
-  const templatesRoot =
-    cfg.templatesRoot && cfg.configPath
-      ? resolve(dirname(cfg.configPath), cfg.templatesRoot)
-      : undefined
+  const templatesRoot = cfg.templatesRoot
+    ? resolve(cfg.projectRoot, cfg.templatesRoot)
+    : undefined
 
   // Try cwd-relative first so `render foo.ftlh` works whether the user is
   // sitting at the templates root or inside a subdirectory of it. Fall back

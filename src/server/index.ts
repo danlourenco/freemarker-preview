@@ -1,12 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect as netConnect } from 'node:net'
 import { fileURLToPath } from 'node:url'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { RenderDaemon } from '../core/daemon.ts'
-import { resolveFixtureOrEmpty } from '../core/fixtures.ts'
+import { materializeFixture } from '../core/fixtures.ts'
 import { FreemarkerError } from '../core/errors.ts'
 import { extractSnippet, type Snippet } from '../core/format-error.ts'
 import { inlineCss } from '../core/inline.ts'
@@ -14,7 +14,25 @@ import { Watcher } from './watcher.ts'
 
 export interface DevServerOptions {
   templatesRoot: string
-  fixturesRoot?: string | null
+  /**
+   * Inline fixture data from the user-level registry. Materialized to a
+   * temp file per render so the JBang renderer can read it. `null` →
+   * render against `{}` (missing-variable pills surface everything).
+   */
+  fixture?: Record<string, unknown> | null
+  /**
+   * Path to the user-level registry file. The dev server re-reads it per
+   * render so external edits to the inline fixture reflect immediately
+   * on the next refresh without restarting `dev`. Paired with
+   * `projectRoot` to look up the right entry.
+   */
+  registryPath?: string | null
+  /**
+   * Absolute project root path — the registry key for this project's
+   * entry. Used to locate the project's fixture when re-reading the
+   * registry per render.
+   */
+  projectRoot?: string | null
   port?: number
   inlineCss?: boolean
   inlineCssOptions?: Record<string, unknown>
@@ -31,7 +49,9 @@ const PUBLIC_DIR = resolve(
 
 export class DevServer {
   private readonly templatesRoot: string
-  private readonly fixturesRoot: string | null
+  private readonly fixture: Record<string, unknown> | null
+  private readonly registryPath: string | null
+  private readonly projectRoot: string | null
   private readonly preferredPort: number
   private readonly inlineCssEnabled: boolean
   private readonly inlineCssOptions: Record<string, unknown>
@@ -43,14 +63,14 @@ export class DevServer {
   private server: Server | null = null
   private sseClients = new Set<ServerResponse>()
   private actualPort: number | null = null
-  private emptyFixtureDir: string | null = null
-  private emptyFixturePath: string | null = null
+  private fixtureDir: string | null = null
+  private fixturePath: string | null = null
 
   constructor(opts: DevServerOptions) {
     this.templatesRoot = resolve(opts.templatesRoot)
-    this.fixturesRoot = opts.fixturesRoot
-      ? resolve(opts.fixturesRoot)
-      : null
+    this.fixture = opts.fixture ?? null
+    this.registryPath = opts.registryPath ?? null
+    this.projectRoot = opts.projectRoot ?? null
     this.preferredPort = opts.port ?? DEFAULT_PORT
     this.inlineCssEnabled = opts.inlineCss ?? true
     this.inlineCssOptions = opts.inlineCssOptions ?? { preserveMediaQueries: true }
@@ -59,12 +79,10 @@ export class DevServer {
   }
 
   async start(): Promise<{ url: string; port: number }> {
-    // Pre-create a {} fixture file once. Templates without a fixture render
-    // against this so the preview still shows something instead of a
-    // fixture-read error blocking everything.
-    this.emptyFixtureDir = mkdtempSync(join(tmpdir(), 'fmp-empty-fixture-'))
-    this.emptyFixturePath = join(this.emptyFixtureDir, 'empty.json')
-    writeFileSync(this.emptyFixturePath, '{}', 'utf8')
+    // Allocate a temp dir we write a single fixture.json into per render.
+    // The path stays stable across renders; only the content rewrites.
+    this.fixtureDir = mkdtempSync(join(tmpdir(), 'fmp-fixture-'))
+    this.fixturePath = join(this.fixtureDir, 'fixture.json')
 
     this.daemon = new RenderDaemon({
       templatesRoot: this.templatesRoot,
@@ -73,9 +91,6 @@ export class DevServer {
     })
 
     const watchRoots = [this.templatesRoot]
-    if (this.fixturesRoot && this.fixturesRoot !== this.templatesRoot) {
-      watchRoots.push(this.fixturesRoot)
-    }
     this.watcher = new Watcher({ roots: watchRoots })
     this.watcher.on('change', () => this.broadcastReload())
     await this.watcher.start()
@@ -103,10 +118,10 @@ export class DevServer {
     this.watcher = null
     await this.daemon?.shutdown()
     this.daemon = null
-    if (this.emptyFixtureDir) {
-      rmSync(this.emptyFixtureDir, { recursive: true, force: true })
-      this.emptyFixtureDir = null
-      this.emptyFixturePath = null
+    if (this.fixtureDir) {
+      rmSync(this.fixtureDir, { recursive: true, force: true })
+      this.fixtureDir = null
+      this.fixturePath = null
     }
   }
 
@@ -149,6 +164,30 @@ export class DevServer {
     }
   }
 
+  /**
+   * Read the current fixture for this project. Defaults to the value
+   * captured at server construction. If `registryPath` + `projectRoot`
+   * are wired up, re-read from disk on every render so external edits
+   * to the registry JSON reflect on the next refresh.
+   */
+  private readCurrentFixture(): Record<string, unknown> | null {
+    if (!this.registryPath || !this.projectRoot) return this.fixture
+    try {
+      const raw = readFileSync(this.registryPath, 'utf8')
+      const parsed = JSON.parse(raw) as {
+        projects?: Record<string, { fixture?: Record<string, unknown> }>
+      }
+      const entry = parsed.projects?.[this.projectRoot]
+      // Entry's `fixture` undefined → registry has the project but no
+      // fixture configured. Return null so the renderer uses `{}`.
+      // Registry read or parse failed → keep the construction-time value
+      // (better than blowing up the render).
+      return entry?.fixture ?? null
+    } catch {
+      return this.fixture
+    }
+  }
+
   private async serveFile(
     res: ServerResponse,
     filename: string,
@@ -163,48 +202,29 @@ export class DevServer {
 
   private async serveRender(url: URL, res: ServerResponse): Promise<void> {
     const templateName = url.searchParams.get('template')
-    const fixtureName = url.searchParams.get('fixture') ?? undefined
 
     if (!templateName) {
       res.statusCode = 400
       res.end('missing ?template')
       return
     }
-    if (!this.daemon) {
+    if (!this.daemon || !this.fixturePath) {
       res.statusCode = 503
       res.end('daemon not running')
       return
     }
 
+    // Re-read the per-project fixture from the user registry per render so
+    // that external edits to ~/.config/freemarker-preview/projects.json
+    // reflect on the next refresh without restarting `dev`.
+    const fixtureData = this.readCurrentFixture()
+    materializeFixture(fixtureData, this.fixturePath)
+    const fixturePath = this.fixturePath
     const templatePath = resolve(this.templatesRoot, templateName)
-    let fixturePath: string
-    try {
-      const resolved = resolveFixtureOrEmpty(
-        templatePath,
-        fixtureName,
-        this.emptyFixturePath!,
-      )
-      fixturePath = resolved.path
-      if (resolved.fallback) {
-        // Surface the fact that this render used {} via a response header.
-        // The client can read it and show a non-blocking notice. Headers
-        // don't disturb the rendered HTML body itself.
-        res.setHeader('x-fmp-fixtureless', '1')
-      }
-    } catch (err) {
-      res.statusCode = 404
-      res.setHeader('content-type', 'application/json; charset=utf-8')
-      res.end(
-        JSON.stringify({
-          ok: false,
-          error: {
-            type: 'fixture-read',
-            message: (err as Error).message,
-            templatePath,
-          },
-        }),
-      )
-      return
+    if (fixtureData === null) {
+      // No fixture in the registry — render against {}. Visible
+      // missing-variable pills surface every unbound reference.
+      res.setHeader('x-fmp-fixtureless', '1')
     }
 
     try {
@@ -433,45 +453,11 @@ async function firstTemplateUnder(root: string): Promise<string | null> {
 
 interface ManifestTemplate {
   name: string
-  fixtures: string[]
 }
 
 async function buildManifest(root: string): Promise<ManifestTemplate[]> {
-  const { readdir, stat } = await import('node:fs/promises')
   const templateNames = await walkTemplates(root)
-  const out: ManifestTemplate[] = []
-  for (const name of templateNames) {
-    const tplAbs = join(root, name)
-    const stem = basenameNoExt(name)
-    const dir = name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : ''
-    const fixturesDirRel = dir ? `${dir}/${stem}.fixtures` : `${stem}.fixtures`
-    const fixturesDirAbs = join(root, fixturesDirRel)
-
-    let fixtures: string[] = []
-    try {
-      const s = await stat(fixturesDirAbs)
-      if (s.isDirectory()) {
-        const entries = await readdir(fixturesDirAbs)
-        fixtures = entries
-          .filter((f) => f.endsWith('.json'))
-          .map((f) => f.replace(/\.json$/, ''))
-          .sort()
-      }
-    } catch {
-      // no .fixtures/ directory — try sibling fallback
-      const siblingRel = dir ? `${dir}/${stem}.json` : `${stem}.json`
-      const siblingAbs = join(root, siblingRel)
-      try {
-        await stat(siblingAbs)
-        fixtures = [stem]
-      } catch {
-        // no fixture at all
-      }
-    }
-    out.push({ name, fixtures })
-    void tplAbs
-  }
-  return out
+  return templateNames.map((name) => ({ name }))
 }
 
 async function walkTemplates(root: string): Promise<string[]> {
@@ -483,7 +469,6 @@ async function walkTemplates(root: string): Promise<string[]> {
       const next = join(dir, e.name)
       const nextRel = rel ? `${rel}/${e.name}` : e.name
       if (e.isDirectory()) {
-        if (e.name.endsWith('.fixtures')) continue
         await walk(next, nextRel)
       } else if (e.name.endsWith('.ftlh') || e.name.endsWith('.ftl')) {
         found.push(nextRel)
@@ -495,9 +480,3 @@ async function walkTemplates(root: string): Promise<string[]> {
   return found
 }
 
-function basenameNoExt(name: string): string {
-  const slash = name.lastIndexOf('/')
-  const base = slash >= 0 ? name.slice(slash + 1) : name
-  const dot = base.lastIndexOf('.')
-  return dot > 0 ? base.slice(0, dot) : base
-}

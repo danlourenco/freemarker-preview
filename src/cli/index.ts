@@ -10,8 +10,8 @@ const HELP = `freemarker-preview — FreeMarker template previewer
 Usage:
   freemarker-preview init [--force] [--no-warmup]
   freemarker-preview dev [--port N] [--no-open]
-  freemarker-preview render <template> [--fixture <name>] [--data <fixture.json>] [--json]
-  freemarker-preview shot <template> [--fixture <name>] [--out file.png]
+  freemarker-preview render <template> [--data <fixture.json>] [--json]
+  freemarker-preview shot <template> [--data <fixture.json>] [--out file.png]
   freemarker-preview --help
 
 Commands:
@@ -21,8 +21,9 @@ Commands:
   shot      Capture a PNG screenshot of the rendered template
 
 Render flags:
-  --fixture <name>     Select a fixture by name from <template>.fixtures/
-  --data <path>        Explicit fixture path (overrides convention)
+  --data <path>        One-shot fixture override (otherwise uses the
+                       per-project fixture from your user registry; falls
+                       back to {} when unset)
   --json               Emit a structured error envelope to stderr on failure
   --no-inline-css      Skip the post-render CSS inlining pass
   --missing <mode>     error | placeholder | empty (default: error)
@@ -33,9 +34,9 @@ Dev flags:
   --missing <mode>     error | placeholder | empty (default: placeholder)
 
 Shot flags:
-  --fixture <name>     Select a fixture by name from <template>.fixtures/
-  --data <path>        Explicit fixture path (overrides convention)
-  --out <file.png>     Output path (defaults to <template>[-<fixture>].png)
+  --data <path>        One-shot fixture override (otherwise uses the
+                       per-project fixture from your user registry)
+  --out <file.png>     Output path (defaults to <template>-<timestamp>.png)
   --no-inline-css      Skip the post-render CSS inlining pass
 
 Missing-variable modes:

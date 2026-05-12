@@ -3,7 +3,17 @@ import { dirname, join, parse, resolve, sep } from 'node:path'
 
 export interface RegistryProjectEntry {
   templatesRoot: string
-  fixturesRoot?: string
+  /**
+   * Inline fixture data for the preview. Lives in the user-level registry
+   * so it never pollutes the project tree (no risk of committing fake
+   * data). Every template renders against this single object; templates
+   * typically share variables (user, order, etc.) so one shared fixture
+   * covers all of them.
+   *
+   * Edit by hand in the registry JSON, or pass `--data <path>` for
+   * one-off overrides on `render`/`shot`.
+   */
+  fixture?: Record<string, unknown>
   locale?: string
   inlineCss?: boolean
   inlineCssOptions?: Record<string, unknown>

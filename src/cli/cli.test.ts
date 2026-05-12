@@ -54,35 +54,17 @@ describe('cli', () => {
     expect(code).not.toBe(0)
   })
 
-  test('render with no --data picks alphabetically-first fixture from <template>.fixtures/', async () => {
-    const { stdout, code } = await runCli([
-      'render',
-      resolve('fixtures/welcome.ftlh'),
-    ])
-    expect(code).toBe(0)
-    expect(stdout).toContain('Welcome, Alice!')
-    expect(stdout).toContain('Status: new')
-  })
-
-  test('--fixture <name> selects the named fixture from <template>.fixtures/', async () => {
-    const { stdout, code } = await runCli([
-      'render',
-      resolve('fixtures/welcome.ftlh'),
-      '--fixture',
-      'returning-user',
-    ])
-    expect(code).toBe(0)
-    expect(stdout).toContain('Welcome, Bob!')
-    expect(stdout).toContain('Status: returning')
-  })
-
-  test('falls back to sibling <template>.json when no .fixtures/ directory exists', async () => {
-    const { stdout, code } = await runCli([
+  test('render with no --data renders against the registry fixture (or {} if none configured)', async () => {
+    // No registry entry will match the cwd of these tests, so cfg.fixture
+    // is null → materializeFixture writes {}. With strict missing-variable
+    // mode, the template that uses ${name} fails — proving the render did
+    // happen with {} (not with the previously-removed sibling JSON lookup).
+    const { code, stderr } = await runCli([
       'render',
       resolve('fixtures/hello.ftlh'),
     ])
-    expect(code).toBe(0)
-    expect(stdout).toContain('Hello, World!')
+    expect(code).not.toBe(0)
+    expect(stderr).toMatch(/undefined-variable|name/i)
   })
 
   test('render with a typo template writes a pretty error with file:line:col + snippet to stderr', async () => {
@@ -138,6 +120,8 @@ describe('cli', () => {
     const { stdout, code } = await runCli([
       'render',
       resolve('fixtures/styled.ftlh'),
+      '--data',
+      resolve('fixtures/styled.json'),
     ])
     expect(code).toBe(0)
     expect(stdout).toMatch(
@@ -151,6 +135,8 @@ describe('cli', () => {
     const { stdout, code } = await runCli([
       'render',
       resolve('fixtures/styled.ftlh'),
+      '--data',
+      resolve('fixtures/styled.json'),
       '--no-inline-css',
     ])
     expect(code).toBe(0)

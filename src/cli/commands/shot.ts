@@ -1,8 +1,9 @@
-import { basename, extname, resolve } from 'node:path'
-import { writeFile, readFileSync, existsSync } from 'node:fs'
+import { basename, extname, join, resolve } from 'node:path'
+import { mkdtempSync, rmSync, writeFile, readFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { render, type PreviewMissingAs } from '../../core/render.ts'
-import { resolveFixture } from '../../core/fixtures.ts'
+import { materializeFixture } from '../../core/fixtures.ts'
 import { loadConfig } from '../../core/config.ts'
 import { FreemarkerError } from '../../core/errors.ts'
 import { formatError } from '../../core/format-error.ts'
@@ -12,7 +13,6 @@ const writeFileP = promisify(writeFile)
 
 export interface ShotArgs {
   template: string
-  fixture?: string
   data?: string
   out?: string
   noInlineCss: boolean
@@ -20,7 +20,6 @@ export interface ShotArgs {
 
 export function parseShotArgs(argv: string[]): ShotArgs {
   let template: string | undefined
-  let fixture: string | undefined
   let data: string | undefined
   let out: string | undefined
   let noInlineCss = false
@@ -28,7 +27,6 @@ export function parseShotArgs(argv: string[]): ShotArgs {
   let i = 0
   while (i < argv.length) {
     const arg = argv[i]
-    if (arg === '--fixture') { fixture = argv[i + 1]; i += 2; continue }
     if (arg === '--data')    { data = argv[i + 1];    i += 2; continue }
     if (arg === '--out')     { out = argv[i + 1];     i += 2; continue }
     if (arg === '--no-inline-css') { noInlineCss = true; i += 1; continue }
@@ -41,7 +39,7 @@ export function parseShotArgs(argv: string[]): ShotArgs {
   }
 
   if (!template) throw new Error('shot: missing <template> argument')
-  return { template, fixture, data, out, noInlineCss }
+  return { template, data, out, noInlineCss }
 }
 
 /**
@@ -95,14 +93,15 @@ export async function runShot(argv: string[]): Promise<number> {
       ? cwdResolved
       : resolve(templatesRoot, args.template)
 
+  // --data wins (one-shot override). Otherwise materialize cfg.fixture
+  // (or {}) to a temp file. No legacy `<template>.json` sibling lookup.
   let fixturePath: string
-  try {
-    fixturePath = args.data
-      ? resolve(args.data)
-      : resolveFixture(templatePath, args.fixture)
-  } catch (err) {
-    process.stderr.write(`${(err as Error).message}\n`)
-    return 1
+  let tempFixtureDir: string | null = null
+  if (args.data) {
+    fixturePath = resolve(args.data)
+  } else {
+    tempFixtureDir = mkdtempSync(join(tmpdir(), 'fmp-shot-fixture-'))
+    fixturePath = materializeFixture(cfg.fixture, join(tempFixtureDir, 'fixture.json'))
   }
 
   const missingMode: PreviewMissingAs = cfg.previewMissingAs ?? 'error'
@@ -154,5 +153,7 @@ export async function runShot(argv: string[]): Promise<number> {
       process.stderr.write(`shot failed: ${(err as Error).message}\n`)
     }
     return 1
+  } finally {
+    if (tempFixtureDir) rmSync(tempFixtureDir, { recursive: true, force: true })
   }
 }

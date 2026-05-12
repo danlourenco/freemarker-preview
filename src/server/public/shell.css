@@ -79,40 +79,8 @@ body {
   flex: 0 0 auto;
 }
 
-.shell-fixtures {
+.shell-header-spacer {
   flex: 1 1 auto;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-  min-height: 24px;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 11px;
-}
-
-.shell-fixtures:empty::before {
-  content: '(no fixtures)';
-  color: var(--muted);
-  font-style: italic;
-}
-
-.fixture-pill {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--pill-bg);
-  color: var(--fg);
-  font: inherit;
-  white-space: nowrap;
-}
-
-.fixture-pill:hover { filter: brightness(0.95); }
-
-.fixture-pill[aria-selected="true"] {
-  background: var(--pill-active-bg);
-  color: var(--pill-active-fg);
 }
 
 .shell-controls {

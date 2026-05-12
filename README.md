@@ -87,7 +87,7 @@ freemarker-preview dev [--port N] [--no-open] [--missing <mode>]
 URL state survives refresh and supports deep-linking:
 
 ```
-http://localhost:5173/?template=welcome.ftlh&fixture=new-user&width=375&dark=1
+http://localhost:5173/?template=welcome.ftlh&width=375&dark=1
 ```
 
 ### `render`
@@ -96,14 +96,13 @@ One-shot render to stdout. The default error mode is **strict** — production f
 
 ```bash
 freemarker-preview render <template> \
-  [--fixture <name>] [--data <fixture.json>] \
+  [--data <fixture.json>] \
   [--json] [--no-inline-css] [--missing <mode>]
 ```
 
 | Flag | Behavior |
 |---|---|
-| `--fixture <name>` | Pick a named fixture from `<template>.fixtures/`. |
-| `--data <path>` | Explicit fixture path (overrides convention). |
+| `--data <path>` | One-shot fixture override. Without it, uses the per-project fixture from your user registry (see [Fixture data](#fixture-data)). |
 | `--json` | On render failure, emit a structured JSON error envelope to stderr instead of the pretty colored output. |
 | `--no-inline-css` | Skip the post-render CSS-inlining pass. |
 | `--missing <mode>` | `error` (default) / `placeholder` / `empty`. |
@@ -111,7 +110,8 @@ freemarker-preview render <template> \
 Exit code is `0` on success, non-zero on failure.
 
 ```bash
-freemarker-preview render welcome.ftlh --fixture new-user > out.html
+freemarker-preview render welcome.ftlh > out.html
+freemarker-preview render welcome.ftlh --data /tmp/special.json
 freemarker-preview render welcome.ftlh --json 2> err.json
 ```
 
@@ -121,14 +121,14 @@ PNG screenshot of the rendered, css-inlined template via Playwright. Lazy-loads 
 
 ```bash
 freemarker-preview shot <template> \
-  [--fixture <name>] [--data <fixture.json>] \
+  [--data <fixture.json>] \
   [--out file.png] [--no-inline-css]
 ```
 
 | Flag | Default | Behavior |
 |---|---|---|
-| `--out <file.png>` | `<template>[-<fixture>]-<timestamp>.png` | Override output path. The timestamp keeps repeated shots from overwriting each other. |
-| `--fixture <name>` | (alphabetical first) | Same convention as `render`. |
+| `--out <file.png>` | `<template>-<timestamp>.png` | Override output path. The timestamp keeps repeated shots from overwriting each other. |
+| `--data <path>` | (uses registry fixture) | One-shot fixture override. |
 | `--no-inline-css` | (off) | Skip the inline pass before capture. |
 
 Defaults: 600px viewport width, full-page capture, PNG, `deviceScaleFactor: 2` for retina.
@@ -211,33 +211,52 @@ Drop this into your project root if you'd rather commit config to the repo. The 
 | `dev.port` | `5173` | Walks +5 if busy. |
 | `dev.open` | `true` | Auto-open browser on `dev` start. |
 
-## Fixture conventions
+## Fixture data
 
-```
-src/main/resources/templates/
-├── welcome.ftlh                       <- template
-├── welcome.fixtures/                  <- multi-fixture: pick with --fixture
-│   ├── new-user.json
-│   └── returning-user.json
-├── confirmation.ftlh                  <- template
-└── confirmation.json                  <- single-fixture sibling
-```
+Your preview fixture lives in your **user-level registry** — the same file as the rest of your project config. Nothing fixture-related ever lives in your project tree, so there's zero chance of accidentally committing test data alongside your templates.
 
-| Pattern | Resolver picks |
+Edit it by opening:
+
+| Platform | Path |
 |---|---|
-| `<template>.fixtures/<name>.json` | `--fixture <name>` selects this. |
-| `<template>.fixtures/*.json` (no `--fixture`) | Alphabetically first. |
-| `<template>.json` (sibling fallback) | When no `.fixtures/` directory exists. |
+| macOS / Linux | `$XDG_CONFIG_HOME/freemarker-preview/projects.json` (default `~/.config/freemarker-preview/projects.json`) |
+| Windows | `%APPDATA%\freemarker-preview\projects.json` |
+
+…and adding a `fixture` object to your project's entry:
+
+```json
+{
+  "projects": {
+    "/Users/dlo/Dev/agreement": {
+      "templatesRoot": "src/main/resources/templates/email",
+      "fixture": {
+        "user": { "name": "Dan", "email": "dan@example.com" },
+        "order": { "id": "ORD-001", "total": 99.99 }
+      }
+    }
+  }
+}
+```
+
+Every template in your project renders against this single shared fixture. Most templates reference the same variables (`user`, `order`, etc.), so one shared object covers all of them. If a template references a variable not in your fixture, dev shows it as a red placeholder pill — a visible nudge to add it.
+
+`dev` re-reads the registry per render, so external edits to `projects.json` reflect on the next refresh without restarting.
+
+If no `fixture` key exists, templates render against `{}`. In `dev` (default missing-variable mode = `placeholder`), every reference shows as a pill. In `render` / `shot` (default = `error`), the first undefined reference throws.
+
+### One-shot overrides
+
+For `render` and `shot`, pass `--data <path>` to use a specific JSON file for a single invocation. Useful for CI or scripting:
+
+```bash
+freemarker-preview render welcome.ftlh --data /tmp/staging-data.json > out.html
+```
 
 ISO-8601 strings in fixture JSON auto-coerce to `java.util.Date` on the Java side, so `${createdAt?datetime}` and `${createdAt?string("yyyy-MM-dd")}` work without special setup.
 
-### No fixture? `dev` still renders
+### Migrating from per-template fixtures
 
-In `dev`, templates without any fixture render against `{}`. Combined with the default `placeholder` missing-variable mode, every `${reference}` shows up as a red pill inline so you can see exactly which fields the template wants. No more "no fixture found" blocking the preview.
-
-`render` and `shot` still require an explicit fixture — they're for one-shot output and silently substituting `{}` would produce misleading results. Pass `--data` or wire up a fixture file when you need them.
-
-When a `dev` render falls back to the empty fixture, the response carries an `x-fmp-fixtureless: 1` header so tooling/UI can react.
+Older versions encouraged co-locating `<template>.fixtures/` directories or sibling `<template>.json` files next to each template. Those conventions have been **removed**. If you have leftover fixture files in your templates directory, just delete them — they're no longer consulted.
 
 ## Missing-variable modes
 

@@ -17,7 +17,12 @@ export type PreviewMissingMode = 'error' | 'placeholder' | 'empty'
 
 export interface Config {
   templatesRoot: string | null
-  fixturesRoot: string | null
+  /**
+   * Inline fixture data from the user-level registry. The same object is
+   * used for every template; `dev` materializes it to a temp file per
+   * render. `null` when not configured — renders fall back to `{}`.
+   */
+  fixture: Record<string, unknown> | null
   locale: string
   inlineCss: boolean
   inlineCssOptions: Record<string, unknown>
@@ -61,7 +66,7 @@ const CONFIG_FILENAME = '.freemarkerrc.json'
 const DEFAULTS: Omit<Config, 'configPath' | 'previewMissingAs' | 'projectRoot'> =
   {
     templatesRoot: null,
-    fixturesRoot: null,
+    fixture: null,
     locale: 'en_US',
     inlineCss: true,
     inlineCssOptions: { preserveMediaQueries: true },
@@ -114,7 +119,7 @@ function fromRegistryEntry(
   return {
     ...DEFAULTS,
     templatesRoot: entry.templatesRoot ?? DEFAULTS.templatesRoot,
-    fixturesRoot: entry.fixturesRoot ?? DEFAULTS.fixturesRoot,
+    fixture: entry.fixture ?? DEFAULTS.fixture,
     locale: entry.locale ?? DEFAULTS.locale,
     inlineCss: entry.inlineCss ?? DEFAULTS.inlineCss,
     inlineCssOptions: entry.inlineCssOptions ?? DEFAULTS.inlineCssOptions,

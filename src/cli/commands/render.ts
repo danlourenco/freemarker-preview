@@ -1,7 +1,8 @@
-import { resolve } from 'node:path'
-import { existsSync, readFileSync } from 'node:fs'
+import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { render, type PreviewMissingAs } from '../../core/render.ts'
-import { resolveFixture } from '../../core/fixtures.ts'
+import { materializeFixture } from '../../core/fixtures.ts'
 import { loadConfig } from '../../core/config.ts'
 import { FreemarkerError } from '../../core/errors.ts'
 import { formatError } from '../../core/format-error.ts'
@@ -24,7 +25,6 @@ function parseMissingFlag(value: string | undefined): PreviewMissingAs {
 
 export interface RenderArgs {
   template: string
-  fixture?: string
   data?: string
   json: boolean
   noInlineCss: boolean
@@ -33,7 +33,6 @@ export interface RenderArgs {
 
 export function parseRenderArgs(argv: string[]): RenderArgs {
   let template: string | undefined
-  let fixture: string | undefined
   let data: string | undefined
   let json = false
   let noInlineCss = false
@@ -44,11 +43,6 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
     const arg = argv[i]
     if (arg === '--data') {
       data = argv[i + 1]
-      i += 2
-      continue
-    }
-    if (arg === '--fixture') {
-      fixture = argv[i + 1]
       i += 2
       continue
     }
@@ -77,7 +71,7 @@ export function parseRenderArgs(argv: string[]): RenderArgs {
 
   if (!template) throw new Error('render: missing <template> argument')
 
-  return { template, fixture, data, json, noInlineCss, missing }
+  return { template, data, json, noInlineCss, missing }
 }
 
 function emitFailure(err: unknown, json: boolean, templatePath?: string): void {
@@ -154,14 +148,17 @@ export async function runRender(argv: string[]): Promise<number> {
       ? cwdResolved
       : resolve(templatesRoot, args.template)
 
+  // --data wins (one-shot override). Otherwise materialize the inline
+  // fixture from the user registry to a temp file. No registry fixture →
+  // materialize `{}`; missing-variable mode decides whether that errors
+  // or renders with pills.
   let fixturePath: string
-  try {
-    fixturePath = args.data
-      ? resolve(args.data)
-      : resolveFixture(templatePath, args.fixture)
-  } catch (err) {
-    emitFailure(err, args.json, templatePath)
-    return 1
+  let tempFixtureDir: string | null = null
+  if (args.data) {
+    fixturePath = resolve(args.data)
+  } else {
+    tempFixtureDir = mkdtempSync(join(tmpdir(), 'fmp-render-fixture-'))
+    fixturePath = materializeFixture(cfg.fixture, join(tempFixtureDir, 'fixture.json'))
   }
 
   const shouldInline = !args.noInlineCss && cfg.inlineCss
@@ -186,5 +183,7 @@ export async function runRender(argv: string[]): Promise<number> {
   } catch (err) {
     emitFailure(err, args.json, templatePath)
     return 1
+  } finally {
+    if (tempFixtureDir) rmSync(tempFixtureDir, { recursive: true, force: true })
   }
 }

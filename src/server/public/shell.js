@@ -4,7 +4,6 @@
   const status = document.getElementById('status');
   const statusLabel = document.getElementById('status-label');
   const sidebar = document.getElementById('templates');
-  const fixtures = document.getElementById('fixtures');
   const widthBtns = document.querySelectorAll('.width-btn');
   const widthCustom = document.getElementById('width-custom');
   const darkToggle = document.getElementById('dark-toggle');
@@ -27,7 +26,6 @@
     const u = new URL(window.location.href);
     return {
       template: u.searchParams.get('template'),
-      fixture: u.searchParams.get('fixture'),
       width: u.searchParams.get('width'),
       dark: u.searchParams.get('dark') === '1',
     };
@@ -171,35 +169,9 @@
     emit(tree, 0);
   }
 
-  function renderFixturePicker() {
-    const p = getParams();
-    const tpl = manifest.templates.find((t) => t.name === p.template);
-    fixtures.innerHTML = '';
-    if (!tpl || tpl.fixtures.length === 0) return;
-    for (const fix of tpl.fixtures) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'fixture-pill';
-      btn.role = 'tab';
-      btn.textContent = fix;
-      btn.setAttribute('aria-selected', String(fix === p.fixture));
-      btn.addEventListener('click', () => selectFixture(fix));
-      fixtures.appendChild(btn);
-    }
-  }
-
   function selectTemplate(name) {
-    const tpl = manifest.templates.find((t) => t.name === name);
-    const fixture = tpl && tpl.fixtures.length > 0 ? tpl.fixtures[0] : null;
-    setParams({ template: name, fixture });
+    setParams({ template: name });
     renderSidebar();
-    renderFixturePicker();
-    refresh();
-  }
-
-  function selectFixture(name) {
-    setParams({ fixture: name });
-    renderFixturePicker();
     refresh();
   }
 
@@ -334,7 +306,6 @@
 
     const qs = new URLSearchParams();
     qs.set('template', p.template);
-    if (p.fixture) qs.set('fixture', p.fixture);
     if (p.dark) qs.set('dark', '1');
 
     try {
@@ -380,17 +351,13 @@
     const p = getParams();
     if (p.template) return;
     if (manifest.templates.length === 0) return;
-    const first = manifest.templates[0];
-    const updates = { template: first.name };
-    if (first.fixtures.length > 0) updates.fixture = first.fixtures[0];
-    setParams(updates);
+    setParams({ template: manifest.templates[0].name });
   }
 
   async function bootstrap() {
     await loadManifest();
     await ensureTemplateInUrl();
     renderSidebar();
-    renderFixturePicker();
     applyWidth();
     applyDark();
     await refresh();

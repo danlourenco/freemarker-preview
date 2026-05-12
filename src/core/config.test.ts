@@ -45,7 +45,7 @@ describe('loadConfig — .freemarkerrc.json fallback', () => {
     expect(cfg.templatesRoot).toBe('templates')
     expect(cfg.locale).toBe('en_US')
     expect(cfg.inlineCss).toBe(true)
-    expect(cfg.fixturesRoot).toBeNull()
+    expect(cfg.fixture).toBeNull()
   })
 
   test('throws a clear error when the config file is malformed JSON', () => {

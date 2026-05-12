@@ -1,7 +1,9 @@
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import open from 'open'
 import { DevServer } from '../../server/index.ts'
 import { loadConfig } from '../../core/config.ts'
+import { computeRegistryPath } from '../../core/registry.ts'
 import type { PreviewMissingAs } from '../../core/render.ts'
 
 const VALID_MISSING_MODES: readonly PreviewMissingAs[] = [
@@ -71,9 +73,6 @@ export async function runDev(argv: string[]): Promise<number> {
   const templatesRoot = cfg.templatesRoot
     ? resolve(cfg.projectRoot, cfg.templatesRoot)
     : process.cwd()
-  const fixturesRoot = cfg.fixturesRoot
-    ? resolve(cfg.projectRoot, cfg.fixturesRoot)
-    : null
 
   // dev defaults to 'placeholder' so undefined variables render as visible
   // pills inline rather than blocking the whole preview with the error overlay.
@@ -81,9 +80,20 @@ export async function runDev(argv: string[]): Promise<number> {
   const missingMode: PreviewMissingAs =
     args.missing ?? cfg.previewMissingAs ?? 'placeholder'
 
+  // Wire registryPath + projectRoot so the dev server re-reads the
+  // inline fixture per render — external edits to the registry JSON
+  // reflect on the next refresh without restarting dev.
+  const registryPath = computeRegistryPath({
+    platform: process.platform,
+    homedir: homedir(),
+    env: process.env,
+  })
+
   const server = new DevServer({
     templatesRoot,
-    fixturesRoot,
+    fixture: cfg.fixture,
+    registryPath,
+    projectRoot: cfg.projectRoot,
     port: args.port ?? cfg.dev.port,
     inlineCss: cfg.inlineCss,
     inlineCssOptions: cfg.inlineCssOptions,

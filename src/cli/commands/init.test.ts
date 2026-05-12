@@ -15,7 +15,8 @@ let originalRegistryEnv: string | undefined
 beforeEach(() => {
   scratch = realpathSync(mkdtempSync(join(tmpdir(), 'fmp-init-')))
   projectRoot = join(scratch, 'agreement')
-  templatesDir = join(projectRoot, 'src', 'main', 'resources', 'templates', 'email')
+  // Bare single-candidate layout. Multi-candidate tests add subdirs inline.
+  templatesDir = join(projectRoot, 'src', 'main', 'resources', 'templates')
   mkdirSync(templatesDir, { recursive: true })
   writeFileSync(join(projectRoot, 'pom.xml'), '<project/>', 'utf8')
 
@@ -39,50 +40,32 @@ afterEach(() => {
 function stubPrompter(overrides: Partial<InitPrompter> = {}): InitPrompter {
   return {
     confirmUseDetected: vi.fn().mockResolvedValue(true),
+    chooseFromCandidates: vi.fn().mockResolvedValue(null),
     pickDirectory: vi.fn().mockResolvedValue(null),
     confirmOverwrite: vi.fn().mockResolvedValue(true),
     ...overrides,
   }
 }
 
-describe('runInit', () => {
-  test('from inside templates/email: registry keyed by project root, templatesRoot is the path the user picks', async () => {
-    process.chdir(templatesDir)
-    // User rejects the detected dir (src/main/resources/templates) and
-    // picks the deeper email subdir instead.
-    const prompter = stubPrompter({
-      confirmUseDetected: vi.fn().mockResolvedValue(false),
-      pickDirectory: vi.fn().mockResolvedValue(templatesDir),
-    })
-
-    const code = await runInit(['--no-warmup'], prompter)
-
-    expect(code).toBe(0)
-    expect(prompter.confirmUseDetected).toHaveBeenCalled()
-    expect(prompter.pickDirectory).toHaveBeenCalledWith(projectRoot)
-    const reg = loadRegistry(registryPath)
-    expect(Object.keys(reg.projects)).toEqual([projectRoot])
-    expect(reg.projects[projectRoot]).toEqual({
-      templatesRoot: 'src/main/resources/templates/email',
-    })
-  })
-
-  test('accepting the detected dir uses it as templatesRoot', async () => {
-    process.chdir(templatesDir)
+describe('runInit — single-candidate flow (confirmUseDetected)', () => {
+  test('accepting the detected dir writes that dir as templatesRoot', async () => {
+    process.chdir(projectRoot)
     const prompter = stubPrompter()
 
     const code = await runInit(['--no-warmup'], prompter)
 
     expect(code).toBe(0)
+    expect(prompter.confirmUseDetected).toHaveBeenCalledWith(templatesDir)
+    expect(prompter.chooseFromCandidates).not.toHaveBeenCalled()
     const reg = loadRegistry(registryPath)
     expect(reg.projects[projectRoot]).toEqual({
       templatesRoot: 'src/main/resources/templates',
     })
   })
 
-  test('user rejecting the detected dir falls through to the directory picker', async () => {
+  test('rejecting the detected dir falls through to the directory picker', async () => {
     process.chdir(projectRoot)
-    const picked = join(projectRoot, 'src', 'main', 'resources', 'templates')
+    const picked = join(projectRoot, 'src', 'main', 'resources')
     const prompter = stubPrompter({
       confirmUseDetected: vi.fn().mockResolvedValue(false),
       pickDirectory: vi.fn().mockResolvedValue(picked),
@@ -94,25 +77,111 @@ describe('runInit', () => {
     expect(prompter.pickDirectory).toHaveBeenCalledWith(projectRoot)
     const reg = loadRegistry(registryPath)
     expect(reg.projects[projectRoot]).toEqual({
-      templatesRoot: 'src/main/resources/templates',
+      templatesRoot: 'src/main/resources',
+    })
+  })
+})
+
+describe('runInit — multi-candidate flow (chooseFromCandidates)', () => {
+  test('from inside templates/email: picks the email subdir from the candidate list', async () => {
+    const emailDir = join(templatesDir, 'email')
+    mkdirSync(emailDir, { recursive: true })
+    process.chdir(emailDir)
+
+    const prompter = stubPrompter({
+      chooseFromCandidates: vi.fn().mockResolvedValue(emailDir),
+    })
+
+    const code = await runInit(['--no-warmup'], prompter)
+
+    expect(code).toBe(0)
+    expect(prompter.chooseFromCandidates).toHaveBeenCalledWith([
+      templatesDir,
+      emailDir,
+    ])
+    expect(prompter.confirmUseDetected).not.toHaveBeenCalled()
+    const reg = loadRegistry(registryPath)
+    expect(reg.projects[projectRoot]).toEqual({
+      templatesRoot: 'src/main/resources/templates/email',
     })
   })
 
-  test('picker cancellation aborts without writing the registry', async () => {
+  test('select prompt returning "picker" drops into the directory picker', async () => {
+    const emailDir = join(templatesDir, 'email')
+    mkdirSync(emailDir, { recursive: true })
     process.chdir(projectRoot)
+
+    const picked = join(projectRoot, 'src', 'main', 'resources')
     const prompter = stubPrompter({
-      confirmUseDetected: vi.fn().mockResolvedValue(false),
+      chooseFromCandidates: vi.fn().mockResolvedValue('picker'),
+      pickDirectory: vi.fn().mockResolvedValue(picked),
+    })
+
+    const code = await runInit(['--no-warmup'], prompter)
+
+    expect(code).toBe(0)
+    expect(prompter.pickDirectory).toHaveBeenCalledWith(projectRoot)
+    const reg = loadRegistry(registryPath)
+    expect(reg.projects[projectRoot]).toEqual({
+      templatesRoot: 'src/main/resources',
+    })
+  })
+
+  test('select prompt returning null cancels without writing the registry', async () => {
+    mkdirSync(join(templatesDir, 'email'), { recursive: true })
+    process.chdir(projectRoot)
+
+    const prompter = stubPrompter({
+      chooseFromCandidates: vi.fn().mockResolvedValue(null),
+    })
+
+    const code = await runInit(['--no-warmup'], prompter)
+
+    expect(code).toBe(1)
+    expect(prompter.pickDirectory).not.toHaveBeenCalled()
+    const reg = loadRegistry(registryPath)
+    expect(reg.projects).toEqual({})
+  })
+})
+
+describe('runInit — zero-candidate flow (straight to picker)', () => {
+  test('no templates dirs detected → picker is invoked directly', async () => {
+    rmSync(templatesDir, { recursive: true })
+    process.chdir(projectRoot)
+
+    const picked = join(projectRoot, 'mytemplates')
+    mkdirSync(picked)
+    const prompter = stubPrompter({
+      pickDirectory: vi.fn().mockResolvedValue(picked),
+    })
+
+    const code = await runInit(['--no-warmup'], prompter)
+
+    expect(code).toBe(0)
+    expect(prompter.confirmUseDetected).not.toHaveBeenCalled()
+    expect(prompter.chooseFromCandidates).not.toHaveBeenCalled()
+    expect(prompter.pickDirectory).toHaveBeenCalledWith(projectRoot)
+    const reg = loadRegistry(registryPath)
+    expect(reg.projects[projectRoot]).toEqual({ templatesRoot: 'mytemplates' })
+  })
+
+  test('zero candidates + picker cancellation → aborts with no registry write', async () => {
+    rmSync(templatesDir, { recursive: true })
+    process.chdir(projectRoot)
+
+    const prompter = stubPrompter({
       pickDirectory: vi.fn().mockResolvedValue(null),
     })
 
     const code = await runInit(['--no-warmup'], prompter)
 
     expect(code).toBe(1)
-    // Registry should not be created when init aborts.
     const reg = loadRegistry(registryPath)
     expect(reg.projects).toEqual({})
   })
+})
 
+describe('runInit — overwrite handling', () => {
   test('prompts before overwriting an existing entry; refusal aborts', async () => {
     process.chdir(projectRoot)
     writeFileSync(
@@ -127,7 +196,6 @@ describe('runInit', () => {
 
     expect(code).toBe(1)
     expect(prompter.confirmOverwrite).toHaveBeenCalledWith(projectRoot)
-    // Original entry preserved.
     const reg = loadRegistry(registryPath)
     expect(reg.projects[projectRoot]).toEqual({ templatesRoot: 'old' })
   })

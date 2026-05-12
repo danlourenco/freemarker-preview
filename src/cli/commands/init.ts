@@ -33,9 +33,18 @@ export function parseInitArgs(argv: string[]): InitArgs {
  */
 export interface InitPrompter {
   confirmUseDetected(detectedDir: string): Promise<boolean>
+  /**
+   * Shown when detection turns up 2+ plausible candidates. Returns the
+   * chosen absolute path, the literal `'picker'` to drop into the directory
+   * picker, or `null` to cancel.
+   */
+  chooseFromCandidates(candidates: string[]): Promise<string | 'picker' | null>
   pickDirectory(start: string): Promise<string | null>
   confirmOverwrite(projectRoot: string): Promise<boolean>
 }
+
+const CHOICE_PICKER = '__fmp_choice_picker__'
+const CHOICE_CANCEL = '__fmp_choice_cancel__'
 
 const defaultPrompter: InitPrompter = {
   confirmUseDetected: (detectedDir) =>
@@ -43,6 +52,20 @@ const defaultPrompter: InitPrompter = {
       message: `Use detected templates directory?\n  ${detectedDir}`,
       default: true,
     }),
+  chooseFromCandidates: async (candidates) => {
+    const choice = await select({
+      message: 'Pick a templates directory:',
+      choices: [
+        ...candidates.map((abs) => ({ name: abs, value: abs })),
+        { name: '[ choose a different directory ]', value: CHOICE_PICKER },
+        { name: '[ cancel ]', value: CHOICE_CANCEL },
+      ],
+      pageSize: 15,
+    })
+    if (choice === CHOICE_PICKER) return 'picker'
+    if (choice === CHOICE_CANCEL) return null
+    return choice
+  },
   pickDirectory: pickDirectoryInteractive,
   confirmOverwrite: (projectRoot) =>
     confirm({
@@ -84,17 +107,10 @@ export async function runInit(
     }
   }
 
-  let chosenDir: string | null = null
-  if (layout.templatesDir) {
-    const useIt = await prompter.confirmUseDetected(layout.templatesDir)
-    if (useIt) chosenDir = layout.templatesDir
-  }
+  const chosenDir = await chooseTemplatesDir(prompter, layout.templateCandidates, projectRoot)
   if (!chosenDir) {
-    chosenDir = await prompter.pickDirectory(projectRoot)
-    if (!chosenDir) {
-      process.stdout.write('cancelled.\n')
-      return 1
-    }
+    process.stdout.write('cancelled.\n')
+    return 1
   }
 
   // Store templatesRoot as a relative path from the project root so the
@@ -126,6 +142,32 @@ export async function runInit(
   }
 
   return 0
+}
+
+/**
+ * Pick a templates directory based on what detection turned up.
+ *   0 candidates  → straight to the directory picker
+ *   1 candidate   → simple yes/no on the detected dir; fall through on no
+ *   2+ candidates → select prompt; user can pick one, drop to the picker,
+ *                   or cancel
+ */
+async function chooseTemplatesDir(
+  prompter: InitPrompter,
+  candidates: string[],
+  projectRoot: string,
+): Promise<string | null> {
+  if (candidates.length === 0) {
+    return prompter.pickDirectory(projectRoot)
+  }
+  if (candidates.length === 1) {
+    const useIt = await prompter.confirmUseDetected(candidates[0])
+    if (useIt) return candidates[0]
+    return prompter.pickDirectory(projectRoot)
+  }
+  const choice = await prompter.chooseFromCandidates(candidates)
+  if (choice === null) return null
+  if (choice === 'picker') return prompter.pickDirectory(projectRoot)
+  return choice
 }
 
 const SENTINEL_SELECT = '__fmp_select_current__'

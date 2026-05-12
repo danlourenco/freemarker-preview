@@ -1,12 +1,23 @@
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, parse } from 'node:path'
 
 export interface ProjectLayout {
   kind: 'spring-boot' | 'unknown'
   /** Absolute path of the detected Spring Boot project root, if any. */
   projectRoot: string | null
-  /** Absolute path to the detected templates directory, if any. */
+  /**
+   * Best-guess templates directory: the first entry of `templateCandidates`.
+   * Kept for backwards compatibility with callers that only need one path.
+   */
   templatesDir: string | null
+  /**
+   * All plausible templates directories, ordered. For each detected dir from
+   * the candidate list, the directory itself is included followed by its
+   * immediate non-hidden subdirectories. Lets `init` surface common nested
+   * layouts (e.g. `templates/` and `templates/email/` both exist) without
+   * forcing the user into the directory picker.
+   */
+  templateCandidates: string[]
 }
 
 const SPRING_BOOT_BUILD_FILES = ['pom.xml', 'build.gradle', 'build.gradle.kts']
@@ -31,13 +42,60 @@ const TEMPLATE_DIR_CANDIDATES = [
 export function detectProjectLayout(cwd: string): ProjectLayout {
   const projectRoot = findProjectRoot(cwd)
   if (!projectRoot) {
-    return { kind: 'unknown', projectRoot: null, templatesDir: null }
+    return {
+      kind: 'unknown',
+      projectRoot: null,
+      templatesDir: null,
+      templateCandidates: [],
+    }
   }
-  const templatesDir =
-    TEMPLATE_DIR_CANDIDATES.map((rel) => join(projectRoot, rel)).find(
-      (abs) => existsSync(abs) && statSync(abs).isDirectory(),
-    ) ?? null
-  return { kind: 'spring-boot', projectRoot, templatesDir }
+  const templateCandidates = collectTemplateCandidates(projectRoot)
+  return {
+    kind: 'spring-boot',
+    projectRoot,
+    templatesDir: templateCandidates[0] ?? null,
+    templateCandidates,
+  }
+}
+
+function collectTemplateCandidates(projectRoot: string): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const rel of TEMPLATE_DIR_CANDIDATES) {
+    const abs = join(projectRoot, rel)
+    if (!isDirectory(abs)) continue
+    pushOnce(out, seen, abs)
+    for (const sub of immediateSubdirs(abs)) {
+      pushOnce(out, seen, sub)
+    }
+  }
+  return out
+}
+
+function pushOnce(out: string[], seen: Set<string>, path: string): void {
+  if (seen.has(path)) return
+  seen.add(path)
+  out.push(path)
+}
+
+function immediateSubdirs(dir: string): string[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .map((d) => join(dir, d.name))
+      .sort((a, b) => a.localeCompare(b))
+  } catch {
+    return []
+  }
+}
+
+function isDirectory(path: string): boolean {
+  if (!existsSync(path)) return false
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
 }
 
 function findProjectRoot(start: string): string | null {

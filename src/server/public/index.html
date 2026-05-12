@@ -22,12 +22,24 @@
       <span class="dark-icon" aria-hidden="true">◐</span>
       <span class="dark-label">dark</span>
     </button>
+    <button type="button" class="syntax-warning-chip" id="syntax-warning-chip" hidden aria-haspopup="true" aria-expanded="false">
+      <span class="syntax-warning-icon" aria-hidden="true">⚠</span>
+      <span class="syntax-warning-count" id="syntax-warning-count">0</span>
+      <span class="syntax-warning-label">syntax</span>
+    </button>
   </div>
   <div class="shell-status" id="status" data-state="idle" title="idle">
     <span class="dot"></span>
     <span class="label" id="status-label">idle</span>
   </div>
 </header>
+<div class="syntax-warning-panel" id="syntax-warning-panel" hidden role="region" aria-label="syntax warnings">
+  <div class="syntax-warning-panel-header">
+    <strong>Foreign syntax in rendered output</strong>
+    <span class="syntax-warning-panel-sub">non-FreeMarker template syntax that didn't get interpolated — likely a copy-paste leak from another engine</span>
+  </div>
+  <ul class="syntax-warning-list" id="syntax-warning-list"></ul>
+</div>
 <div class="shell-body">
   <aside class="shell-sidebar" aria-label="templates">
     <div class="sidebar-section-label">templates</div>

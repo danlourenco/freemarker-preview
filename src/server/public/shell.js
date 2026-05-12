@@ -8,6 +8,10 @@
   const widthBtns = document.querySelectorAll('.width-btn');
   const widthCustom = document.getElementById('width-custom');
   const darkToggle = document.getElementById('dark-toggle');
+  const syntaxChip = document.getElementById('syntax-warning-chip');
+  const syntaxCount = document.getElementById('syntax-warning-count');
+  const syntaxPanel = document.getElementById('syntax-warning-panel');
+  const syntaxList = document.getElementById('syntax-warning-list');
   const overlay = document.getElementById('overlay');
   const overlayType = document.getElementById('overlay-type');
   const overlayLocation = document.getElementById('overlay-location');
@@ -319,6 +323,61 @@
 
   overlayDismiss.addEventListener('click', hideOverlay);
 
+  /* ---------- foreign-syntax warning chip ---------- */
+
+  const SYNTAX_LABELS = {
+    'ampscript': 'AMPscript (SFMC)',
+    'mustache': 'Mustache / Handlebars / Liquid',
+    'block-tag': 'Liquid / Jinja block',
+    'jsp-tag': 'JSP / ERB / EJS',
+    'php-tag': 'PHP',
+  };
+
+  function updateSyntaxWarnings(headers) {
+    const raw = headers.get('x-fmp-foreign-syntax');
+    const totalStr = headers.get('x-fmp-foreign-syntax-count');
+    if (!raw || !totalStr) {
+      syntaxChip.hidden = true;
+      syntaxPanel.hidden = true;
+      syntaxChip.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    let findings;
+    try { findings = JSON.parse(decodeURIComponent(raw)); }
+    catch { findings = []; }
+    const total = parseInt(totalStr, 10) || findings.length;
+    syntaxCount.textContent = total > 100 ? '100+' : String(total);
+    syntaxChip.hidden = total === 0;
+
+    syntaxList.innerHTML = '';
+    for (const f of findings) {
+      const li = document.createElement('li');
+      const meta = document.createElement('span');
+      meta.className = 'swl-meta';
+      meta.textContent = `${SYNTAX_LABELS[f.kind] || f.kind} · line ${f.line}, col ${f.column}`;
+      const snip = document.createElement('span');
+      snip.className = 'swl-snippet';
+      snip.textContent = f.snippet;
+      li.appendChild(meta);
+      li.appendChild(snip);
+      syntaxList.appendChild(li);
+    }
+  }
+
+  syntaxChip.addEventListener('click', () => {
+    const open = syntaxPanel.hidden;
+    syntaxPanel.hidden = !open;
+    syntaxChip.setAttribute('aria-expanded', String(open));
+  });
+
+  // Click outside the panel closes it.
+  document.addEventListener('click', (e) => {
+    if (syntaxPanel.hidden) return;
+    if (syntaxPanel.contains(e.target) || syntaxChip.contains(e.target)) return;
+    syntaxPanel.hidden = true;
+    syntaxChip.setAttribute('aria-expanded', 'false');
+  });
+
   /* ---------- render pipeline ---------- */
 
   let inFlight = null;
@@ -355,6 +414,7 @@
       if (ctrl.signal.aborted) return;
       iframe.srcdoc = html;
       hideOverlay();
+      updateSyntaxWarnings(res.headers);
       setStatus('idle');
     } catch (err) {
       if (ctrl.signal.aborted) return;

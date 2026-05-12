@@ -7,7 +7,6 @@ import { dirname, join, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { RenderDaemon } from '../core/daemon.ts'
 import { resolveFixtureOrEmpty } from '../core/fixtures.ts'
-import { detectForeignSyntax } from '../core/foreign-syntax.ts'
 import { FreemarkerError } from '../core/errors.ts'
 import { extractSnippet, type Snippet } from '../core/format-error.ts'
 import { inlineCss } from '../core/inline.ts'
@@ -215,21 +214,6 @@ export class DevServer {
         : html
       if (url.searchParams.get('dark') === '1') {
         out = promoteDarkRules(out)
-      }
-
-      // Flag un-interpolated template syntax from other engines (SFMC
-      // AMPscript, Mustache, JSP, etc.) that leaked through into the
-      // rendered output. Non-blocking — surfaced via response headers so
-      // the iframe content itself stays untouched (faithful render).
-      const findings = detectForeignSyntax(out)
-      if (findings.length > 0) {
-        res.setHeader('x-fmp-foreign-syntax-count', String(findings.length))
-        // Cap the payload at 100 findings to keep the header small. The
-        // count above is the true total so the UI can say "100+".
-        res.setHeader(
-          'x-fmp-foreign-syntax',
-          encodeURIComponent(JSON.stringify(findings.slice(0, 100))),
-        )
       }
 
       res.statusCode = 200

@@ -21,6 +21,13 @@ export interface Config {
    * instead of breaking the preview).
    */
   previewMissingAs?: PreviewMissingMode
+  /**
+   * Forwarded to FreeMarker Configuration.setSetting(key, value) on the Java
+   * side. Use this to match production-side settings that differ from
+   * defaults: number_format, date_format, whitespace_stripping,
+   * template_exception_handler, etc.
+   */
+  freemarker: Record<string, string>
   dev: DevConfig
   configPath: string | null
 }
@@ -33,6 +40,7 @@ const DEFAULTS: Omit<Config, 'configPath' | 'previewMissingAs'> = {
   locale: 'en_US',
   inlineCss: true,
   inlineCssOptions: { preserveMediaQueries: true },
+  freemarker: {},
   dev: { port: 5173, open: true },
 }
 

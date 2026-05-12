@@ -35,6 +35,14 @@ export class Watcher extends EventEmitter {
   async start(): Promise<void> {
     this.fsWatcher = watch(this.roots, {
       ignoreInitial: true,
+      // Atomic-save editors (vim with backup, IntelliJ) write to a tempfile
+      // then rename, producing add/unlink pairs that race the renderer.
+      // awaitWriteFinish makes chokidar wait until the size stops changing
+      // for a stability window before firing change events.
+      awaitWriteFinish: {
+        stabilityThreshold: 100,
+        pollInterval: 50,
+      },
       ignored: (path: string) => {
         if (path === '' || this.roots.includes(path)) return false
         return !this.include.some((pat) => match(path, pat))

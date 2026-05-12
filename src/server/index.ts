@@ -17,6 +17,7 @@ export interface DevServerOptions {
   inlineCss?: boolean
   inlineCssOptions?: Record<string, unknown>
   previewMissingAs?: 'error' | 'placeholder' | 'empty'
+  freemarkerSettings?: Record<string, string>
 }
 
 const DEFAULT_PORT = 5173
@@ -33,6 +34,7 @@ export class DevServer {
   private readonly inlineCssEnabled: boolean
   private readonly inlineCssOptions: Record<string, unknown>
   private readonly missingMode: 'error' | 'placeholder' | 'empty'
+  private readonly freemarkerSettings: Record<string, string>
 
   private daemon: RenderDaemon | null = null
   private watcher: Watcher | null = null
@@ -49,12 +51,14 @@ export class DevServer {
     this.inlineCssEnabled = opts.inlineCss ?? true
     this.inlineCssOptions = opts.inlineCssOptions ?? { preserveMediaQueries: true }
     this.missingMode = opts.previewMissingAs ?? 'error'
+    this.freemarkerSettings = opts.freemarkerSettings ?? {}
   }
 
   async start(): Promise<{ url: string; port: number }> {
     this.daemon = new RenderDaemon({
       templatesRoot: this.templatesRoot,
       previewMissingAs: this.missingMode,
+      freemarkerSettings: this.freemarkerSettings,
     })
 
     const watchRoots = [this.templatesRoot]

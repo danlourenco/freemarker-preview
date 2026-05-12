@@ -90,6 +90,7 @@ export async function runDev(argv: string[]): Promise<number> {
     inlineCss: cfg.inlineCss,
     inlineCssOptions: cfg.inlineCssOptions,
     previewMissingAs: missingMode,
+    freemarkerSettings: cfg.freemarker,
   })
 
   const wantsOpen = args.open && cfg.dev.open

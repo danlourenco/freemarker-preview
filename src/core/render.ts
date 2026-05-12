@@ -16,6 +16,13 @@ export interface RenderOptions {
   javaScriptPath?: string
   /** What to do when a referenced variable is missing. Defaults to 'error'. */
   previewMissingAs?: PreviewMissingAs
+  /**
+   * Forwarded to FreeMarker's Configuration.setSetting(key, value) on the
+   * Java side. Use this to match production-side settings that differ from
+   * defaults: number_format, date_format, whitespace_stripping,
+   * template_exception_handler, etc.
+   */
+  freemarkerSettings?: Record<string, string>
 }
 
 export interface RenderResult {
@@ -55,11 +62,16 @@ export function render(
   const scriptPath = opts.javaScriptPath ?? DEFAULT_JAVA_SCRIPT_PATH
   const missingMode = opts.previewMissingAs ?? 'error'
 
+  const childEnv: NodeJS.ProcessEnv = { ...process.env }
+  if (opts.freemarkerSettings && Object.keys(opts.freemarkerSettings).length > 0) {
+    childEnv.FMP_FREEMARKER_SETTINGS = JSON.stringify(opts.freemarkerSettings)
+  }
+
   return new Promise((resolveP, rejectP) => {
     const proc = spawn(
       'jbang',
       [scriptPath, templatesRoot, templateName, fixturePath, missingMode],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv },
     )
 
     let stdout = ''

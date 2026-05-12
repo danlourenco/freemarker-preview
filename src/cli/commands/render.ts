@@ -179,6 +179,7 @@ export async function runRender(argv: string[]): Promise<number> {
     const { html } = await render(templatePath, fixturePath, {
       templatesRoot,
       previewMissingAs: missingMode,
+      freemarkerSettings: cfg.freemarker,
     })
     const out = shouldInline ? inlineCss(html, cfg.inlineCssOptions) : html
     process.stdout.write(out)

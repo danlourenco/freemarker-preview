@@ -9,6 +9,7 @@ export interface DaemonOptions {
   templatesRoot: string
   javaScriptPath?: string
   previewMissingAs?: PreviewMissingAs
+  freemarkerSettings?: Record<string, string>
 }
 
 export interface DaemonRenderRequest {
@@ -23,14 +24,12 @@ const DEFAULT_JAVA_SCRIPT_PATH = resolve(
 )
 
 interface ResponseEnvelope {
-  id?: string
   ok: boolean
   html?: string
   error?: StructuredError
 }
 
 interface Pending {
-  id: string
   templateName: string
   fixturePath: string
   templatePath: string
@@ -44,10 +43,10 @@ export class RenderDaemon {
   private readonly templatesRoot: string
   private readonly javaScriptPath: string
   private readonly missingMode: PreviewMissingAs
+  private readonly freemarkerSettings: Record<string, string>
 
   private proc: ChildProcessWithoutNullStreams | null = null
   private buffer = ''
-  private idCounter = 0
   private respawnCount = 0
   private fatalCrash = false
   private shuttingDown = false
@@ -59,6 +58,7 @@ export class RenderDaemon {
     this.templatesRoot = resolve(opts.templatesRoot)
     this.javaScriptPath = opts.javaScriptPath ?? DEFAULT_JAVA_SCRIPT_PATH
     this.missingMode = opts.previewMissingAs ?? 'error'
+    this.freemarkerSettings = opts.freemarkerSettings ?? {}
   }
 
   render(req: DaemonRenderRequest): Promise<RenderResult> {
@@ -75,10 +75,8 @@ export class RenderDaemon {
       return Promise.reject(this.fatalCrashError(req.templateName))
     }
 
-    const id = String(++this.idCounter)
     return new Promise<RenderResult>((resolveP, rejectP) => {
       this.queue.push({
-        id,
         templateName: req.templateName,
         fixturePath: req.fixturePath,
         templatePath: resolve(this.templatesRoot, req.templateName),
@@ -131,8 +129,12 @@ export class RenderDaemon {
     }
 
     this.inFlight = next
+    // Protocol is strictly serial request/response: one render in flight,
+    // responses correspond to the head of the queue. No id correlation field —
+    // adding one back is the right move only when the daemon actually accepts
+    // N in-flight renders (a v2 concern when a VS Code extension opens
+    // multiple webviews simultaneously).
     const request = JSON.stringify({
-      id: next.id,
       templateName: next.templateName,
       fixturePath: next.fixturePath,
     })
@@ -142,6 +144,11 @@ export class RenderDaemon {
   private ensureProc(): ChildProcessWithoutNullStreams | null {
     if (this.proc && this.proc.exitCode === null) return this.proc
 
+    const childEnv: NodeJS.ProcessEnv = { ...process.env }
+    if (Object.keys(this.freemarkerSettings).length > 0) {
+      childEnv.FMP_FREEMARKER_SETTINGS = JSON.stringify(this.freemarkerSettings)
+    }
+
     const proc = spawn(
       'jbang',
       [
@@ -150,7 +157,7 @@ export class RenderDaemon {
         this.templatesRoot,
         this.missingMode,
       ],
-      { stdio: ['pipe', 'pipe', 'pipe'] },
+      { stdio: ['pipe', 'pipe', 'pipe'], env: childEnv },
     )
 
     proc.stdout.setEncoding('utf8')

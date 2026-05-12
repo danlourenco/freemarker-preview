@@ -62,9 +62,9 @@ public class Render {
         try {
             Configuration cfg = freshConfig(templatesRoot, missingMode);
             String html = renderWithConfig(cfg, templateName, fixtureFile);
-            emit(envelope(null, Map.of("ok", true, "html", html)));
+            emit(Map.of("ok", true, "html", html));
         } catch (Throwable t) {
-            emit(envelope(null, errorBody(t, templatePath)));
+            emit(errorBody(t, templatePath));
         }
     }
 
@@ -75,35 +75,36 @@ public class Render {
             new InputStreamReader(System.in, StandardCharsets.UTF_8)
         );
 
+        // Strictly serial request/response: read a request line, render,
+        // write a response line. No id correlation — caller is responsible
+        // for treating the daemon as serial.
         String line;
         while ((line = in.readLine()) != null) {
             if (line.isEmpty()) continue;
 
-            String id = null;
             String templateName = null;
             String fixturePath = null;
             try {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> req = MAPPER.readValue(line, Map.class);
-                id = String.valueOf(req.get("id"));
                 templateName = (String) req.get("templateName");
                 fixturePath = (String) req.get("fixturePath");
             } catch (Exception parseEx) {
-                emit(envelope(id, errorBody(parseEx, "")));
+                emit(errorBody(parseEx, ""));
                 continue;
             }
 
             String templatePath = new File(templatesRoot, templateName).getAbsolutePath();
             try {
                 String html = renderWithConfig(cfg, templateName, new File(fixturePath));
-                emit(envelope(id, Map.of("ok", true, "html", html)));
+                emit(Map.of("ok", true, "html", html));
             } catch (Throwable t) {
-                emit(envelope(id, errorBody(t, templatePath)));
+                emit(errorBody(t, templatePath));
             }
         }
     }
 
-    private static Configuration freshConfig(File templatesRoot, String missingMode) throws IOException {
+    private static Configuration freshConfig(File templatesRoot, String missingMode) throws Exception {
         Configuration cfg = new Configuration(Configuration.VERSION_2_3_34);
         cfg.setDirectoryForTemplateLoading(templatesRoot);
         cfg.setDefaultEncoding("UTF-8");
@@ -111,7 +112,24 @@ public class Render {
         cfg.setLocale(Locale.US);
         cfg.setTemplateExceptionHandler(handlerFor(missingMode));
         cfg.setRecognizeStandardFileExtensions(true);
+        applyUserSettings(cfg);
         return cfg;
+    }
+
+    /**
+     * Apply freemarker.* settings from FMP_FREEMARKER_SETTINGS (JSON object)
+     * via Configuration.setSetting(key, value). Lets users mirror their
+     * production FreeMarkerConfigurer overrides (number_format, date_format,
+     * whitespace_stripping, etc.) without code changes.
+     */
+    private static void applyUserSettings(Configuration cfg) throws Exception {
+        String json = System.getenv("FMP_FREEMARKER_SETTINGS");
+        if (json == null || json.isEmpty()) return;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = MAPPER.readValue(json, Map.class);
+        for (Map.Entry<String, Object> e : settings.entrySet()) {
+            cfg.setSetting(e.getKey(), String.valueOf(e.getValue()));
+        }
     }
 
     private static TemplateExceptionHandler handlerFor(String mode) {
@@ -186,13 +204,6 @@ public class Render {
         StringWriter out = new StringWriter();
         template.process(data, out);
         return out.toString();
-    }
-
-    private static Map<String, Object> envelope(String id, Map<String, Object> body) {
-        Map<String, Object> env = new LinkedHashMap<>();
-        if (id != null) env.put("id", id);
-        env.putAll(body);
-        return env;
     }
 
     private static Map<String, Object> errorBody(Throwable t, String templatePath) {

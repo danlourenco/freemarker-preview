@@ -126,6 +126,22 @@ describe('core.render', () => {
     expect(html).not.toContain('fmp-missing')
   })
 
+  test('freemarkerSettings forwards Configuration.setSetting() values to the Java side', async () => {
+    const templatePath = resolve('fixtures/numbers.ftlh')
+    const fixturePath = resolve('fixtures/numbers.json')
+
+    // Default (en_US) produces three decimals: 1,234.568
+    const { html: defaultOut } = await render(templatePath, fixturePath)
+    // Custom: integer-only, no decimals: 1235 (rounded)
+    const { html: customOut } = await render(templatePath, fixturePath, {
+      freemarkerSettings: { number_format: '0' },
+    })
+
+    expect(defaultOut).toContain('1,234.568')
+    expect(customOut).toContain('Pi: 1235')
+    expect(customOut).not.toContain('1,234')
+  })
+
   test('rejects with FreemarkerError(internal) when jbang fails to produce a parseable envelope', async () => {
     const templatePath = resolve('fixtures/hello.ftlh')
     const fixturePath = resolve('fixtures/hello.json')

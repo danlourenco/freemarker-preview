@@ -115,6 +115,7 @@ export async function runShot(argv: string[]): Promise<number> {
     const result = await render(templatePath, fixturePath, {
       templatesRoot,
       previewMissingAs: missingMode,
+      freemarkerSettings: cfg.freemarker,
     })
     html = shouldInline ? inlineCss(result.html, cfg.inlineCssOptions) : result.html
   } catch (err) {

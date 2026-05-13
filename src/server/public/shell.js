@@ -6,7 +6,6 @@
   const sidebar = document.getElementById('templates');
   const widthBtns = document.querySelectorAll('.width-btn');
   const widthCustom = document.getElementById('width-custom');
-  const darkToggle = document.getElementById('dark-toggle');
   const overlay = document.getElementById('overlay');
   const overlayType = document.getElementById('overlay-type');
   const overlayLocation = document.getElementById('overlay-location');
@@ -27,7 +26,6 @@
     return {
       template: u.searchParams.get('template'),
       width: u.searchParams.get('width'),
-      dark: u.searchParams.get('dark') === '1',
     };
   }
 
@@ -313,21 +311,6 @@
     }
   });
 
-  /* ---------- dark toggle ---------- */
-
-  function applyDark() {
-    const p = getParams();
-    darkToggle.setAttribute('aria-pressed', String(p.dark));
-    iframe.style.colorScheme = p.dark ? 'dark' : '';
-  }
-
-  darkToggle.addEventListener('click', () => {
-    const p = getParams();
-    setParams({ dark: !p.dark });
-    applyDark();
-    refresh();
-  });
-
   /* ---------- error overlay ---------- */
 
   function hideOverlay() { overlay.hidden = true; }
@@ -382,7 +365,6 @@
 
     const qs = new URLSearchParams();
     qs.set('template', p.template);
-    if (p.dark) qs.set('dark', '1');
 
     try {
       const res = await fetch('/render?' + qs.toString(), { signal: ctrl.signal });
@@ -435,7 +417,6 @@
     await ensureTemplateInUrl();
     renderSidebar();
     applyWidth();
-    applyDark();
     await refresh();
   }
 

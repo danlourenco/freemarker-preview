@@ -2,7 +2,7 @@
 
 A FreeMarker (`.ftlh` / `.ftl`) template previewer for JS developers in Spring Boot shops. Renders email templates with full FreeMarker fidelity — no JS reimplementation, no Spring Boot app required.
 
-- **Live-reloading dev server** with iframe preview, sidebar, fixture picker, width/dark toggles, error overlay.
+- **Live-reloading dev server** with iframe preview, sidebar, width toggles, error overlay.
 - **One-shot `render`** to stdout for scripts and CI.
 - **PNG capture (`shot`)** for Jira evidence.
 - **Real Apache FreeMarker via JBang** — `${user.name?datetime}`, `<#include>`, `<#macro>`, strict-mode missing-data — all behave exactly like prod.
@@ -72,7 +72,7 @@ Run `init` from anywhere inside your project — including a templates subdirect
 
 ### `dev`
 
-Starts a live-reloading HTTP server with an iframe preview, sidebar template list, fixture picker, width/dark toggles, and a Vite-style error overlay.
+Starts a live-reloading HTTP server with an iframe preview, sidebar template list, width toggles, and a Vite-style error overlay.
 
 ```bash
 freemarker-preview dev [--port N] [--no-open] [--missing <mode>]
@@ -87,7 +87,7 @@ freemarker-preview dev [--port N] [--no-open] [--missing <mode>]
 URL state survives refresh and supports deep-linking:
 
 ```
-http://localhost:5173/?template=welcome.ftlh&width=375&dark=1
+http://localhost:5173/?template=welcome.ftlh&width=375
 ```
 
 ### `render`

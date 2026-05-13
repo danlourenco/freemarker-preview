@@ -134,32 +134,6 @@ body {
 .width-custom::-webkit-outer-spin-button,
 .width-custom::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-.dark-toggle {
-  appearance: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--fg);
-  cursor: pointer;
-  padding: 4px 10px;
-  font: inherit;
-  font-size: 11px;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dark-toggle:hover { background: var(--row-hover); }
-
-.dark-toggle[aria-pressed="true"] {
-  background: var(--pill-active-bg);
-  color: var(--pill-active-fg);
-  border-color: var(--pill-active-bg);
-}
-
-.dark-icon { font-size: 13px; line-height: 1; }
-
 .shell-status {
   display: inline-flex;
   align-items: center;

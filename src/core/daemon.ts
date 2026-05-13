@@ -17,11 +17,9 @@ export interface DaemonRenderRequest {
   fixturePath: string
 }
 
-const DEFAULT_JAVA_SCRIPT_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  'java',
-  'Render.java',
-)
+function defaultJavaScriptPath(): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), 'java', 'Render.java')
+}
 
 interface ResponseEnvelope {
   ok: boolean
@@ -56,7 +54,7 @@ export class RenderDaemon {
 
   constructor(opts: DaemonOptions) {
     this.templatesRoot = resolve(opts.templatesRoot)
-    this.javaScriptPath = opts.javaScriptPath ?? DEFAULT_JAVA_SCRIPT_PATH
+    this.javaScriptPath = opts.javaScriptPath ?? defaultJavaScriptPath()
     this.missingMode = opts.previewMissingAs ?? 'error'
     this.freemarkerSettings = opts.freemarkerSettings ?? {}
   }

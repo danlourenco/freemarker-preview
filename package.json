@@ -17,7 +17,9 @@
     "vscode": "^1.85.0"
   },
   "activationEvents": [
-    "onCommand:freemarker.preview"
+    "onCommand:freemarker.preview",
+    "onCommand:freemarker.refresh",
+    "onCommand:freemarker.stop"
   ],
   "contributes": {
     "languages": [
@@ -31,19 +33,27 @@
       {
         "command": "freemarker.preview",
         "title": "FreeMarker: Preview Template"
+      },
+      {
+        "command": "freemarker.refresh",
+        "title": "FreeMarker: Refresh Preview"
+      },
+      {
+        "command": "freemarker.stop",
+        "title": "FreeMarker: Stop Daemon"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "when": "resourceLangId == freemarker",
+          "when": "resourceExtname == .ftlh || resourceExtname == .ftl",
           "command": "freemarker.preview",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
-          "when": "resourceLangId == freemarker",
+          "when": "resourceExtname == .ftlh || resourceExtname == .ftl",
           "command": "freemarker.preview",
           "group": "navigation"
         }

@@ -1,11 +1,33 @@
 import * as vscode from 'vscode'
-import { openPreviewPanel } from './preview-panel.ts'
 import { prereqsOkOrWarn } from './prereqs-check.ts'
+import type { PreviewPanelManager } from './preview-panel.ts'
+import type { DaemonPool } from './daemon-pool.ts'
 
-export function registerPreviewCommand(context: vscode.ExtensionContext): void {
-  const disposable = vscode.commands.registerCommand('freemarker.preview', (uri: vscode.Uri) => {
-    if (!prereqsOkOrWarn()) return
-    openPreviewPanel(uri)
-  })
-  context.subscriptions.push(disposable)
+export interface CommandDeps {
+  manager: PreviewPanelManager
+  pool: DaemonPool
+}
+
+export function registerCommands(context: vscode.ExtensionContext, deps: CommandDeps): void {
+  const { manager, pool } = deps
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('freemarker.preview', (uri?: vscode.Uri) => {
+      if (!prereqsOkOrWarn()) return
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri
+      if (!target) {
+        vscode.window.showErrorMessage(
+          'FreeMarker: Preview Template needs a .ftlh/.ftl file. Open one in the editor or right-click a template in the Explorer.',
+        )
+        return
+      }
+      void manager.preview(target)
+    }),
+    vscode.commands.registerCommand('freemarker.refresh', () => {
+      void manager.refresh()
+    }),
+    vscode.commands.registerCommand('freemarker.stop', () => {
+      void pool.shutdown()
+    }),
+  )
 }

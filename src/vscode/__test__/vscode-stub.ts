@@ -21,6 +21,7 @@ function defaultPanel() {
 export const window = {
   createWebviewPanel: vi.fn(defaultPanel),
   showErrorMessage: vi.fn(),
+  activeTextEditor: undefined as { document: { uri: { fsPath: string } } } | undefined,
 }
 
 export const commands = {

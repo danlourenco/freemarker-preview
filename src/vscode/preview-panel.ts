@@ -56,7 +56,10 @@ export function buildWebviewHtml(uris: WebviewAssetUris): string {
     `default-src 'none'`,
     `style-src ${uris.cspSource} 'unsafe-inline'`,
     `script-src ${uris.cspSource}`,
-    `img-src ${uris.cspSource} data:`,
+    // img-src is broad on purpose: email templates pull from CDNs (https),
+    // tracking pixels (http), and sometimes inline base64 (data:). Webviews
+    // are sandboxed from the host system, so loosening this is safe.
+    `img-src ${uris.cspSource} data: https: http:`,
     `frame-src ${uris.cspSource} data:`,
   ].join('; ')
 

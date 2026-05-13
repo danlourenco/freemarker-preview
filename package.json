@@ -1,7 +1,7 @@
 {
   "name": "freemarker-preview",
   "displayName": "FreeMarker Preview",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "FreeMarker template previewer for JS developers in Spring Boot shops",
   "publisher": "danlourenco",
   "repository": {

@@ -39,7 +39,15 @@ export function activate(context: vscode.ExtensionContext): void {
     output.appendLine(
       `[freemarker-preview] resolveProject(${uri.fsPath}) under cwd=${cwd} → ${match ? match.projectPath : 'NULL'}`,
     )
-    return match?.entry ?? null
+    if (!match) return null
+    // Registry stores templatesRoot as a path RELATIVE to the project root
+    // (per init.ts). Resolve it against the project key here so the daemon
+    // doesn't end up resolving it against process.cwd() (which is `/` when
+    // VS Code is launched from Spotlight) and producing /src/main/...
+    return {
+      ...match.entry,
+      templatesRoot: path.resolve(match.projectPath, match.entry.templatesRoot),
+    }
   }
 
   const javaScriptPath = path.join(__dirname, 'java', 'Render.java')
@@ -76,7 +84,9 @@ export function activate(context: vscode.ExtensionContext): void {
     getTemplatesRoot: () => {
       const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
       if (!cwd) return null
-      return findProjectForCwd(cwd, loadRegistry(registryPath))?.entry.templatesRoot ?? null
+      const match = findProjectForCwd(cwd, loadRegistry(registryPath))
+      if (!match) return null
+      return path.resolve(match.projectPath, match.entry.templatesRoot)
     },
   })
   context.subscriptions.push(

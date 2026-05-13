@@ -6,6 +6,7 @@ import { DaemonPool } from './daemon-pool.ts'
 import { PreviewPanelManager } from './preview-panel.ts'
 import { registerSaveWatcher } from './save-watcher.ts'
 import { TemplateTreeProvider } from './tree-provider.ts'
+import { StatusBarManager } from './status-bar.ts'
 import {
   computeRegistryPath,
   findProjectForCwd,
@@ -61,6 +62,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   registerCommands(context, { manager })
   registerSaveWatcher(context, manager)
+  const statusBar = new StatusBarManager(manager)
+  context.subscriptions.push(statusBar)
 
   const treeProvider = new TemplateTreeProvider({
     getTemplatesRoot: () => {

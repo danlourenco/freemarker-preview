@@ -6,6 +6,7 @@ import { inlineCss as defaultInlineCss } from '../core/inline.ts'
 import type { DaemonOptions } from '../core/daemon.ts'
 import type { RegistryProjectEntry } from '../core/registry.ts'
 import type { DaemonHandle, DaemonPool } from './daemon-pool.ts'
+import type { RenderState } from './status-bar.ts'
 
 export const PREVIEW_PANEL_VIEW_TYPE = 'freemarkerPreview'
 
@@ -148,6 +149,8 @@ export class PreviewPanelManager {
   private panel: vscode.WebviewPanel | null = null
   private daemonHandle: DaemonHandle | null = null
   private active: ActiveTemplate | null = null
+  private readonly _onStateChange = new vscode.EventEmitter<RenderState>()
+  readonly onDidChangeRenderState: vscode.Event<RenderState> = this._onStateChange.event
 
   constructor(deps: PreviewPanelDeps) {
     this.explicitPool = deps.pool ?? null
@@ -264,6 +267,7 @@ export class PreviewPanelManager {
     const fixturePath = join(this.fixtureDir, `freemarker-preview-fixture-${process.pid}.json`)
     materializeFixture(this.active.fixture, fixturePath)
 
+    this._onStateChange.fire('rendering')
     try {
       const result = await this.daemonHandle.daemon.render({
         templateName: this.active.templateName,
@@ -271,9 +275,11 @@ export class PreviewPanelManager {
       })
       const html = this.inlineCss(result.html)
       await this.panel.webview.postMessage({ type: 'render', html })
+      this._onStateChange.fire('idle')
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       vscode.window.showErrorMessage(`FreeMarker render failed: ${message}`)
+      this._onStateChange.fire('error')
     }
   }
 }

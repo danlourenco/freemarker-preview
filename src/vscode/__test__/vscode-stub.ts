@@ -28,12 +28,34 @@ function defaultOutputChannel() {
   }
 }
 
+function defaultStatusBarItem() {
+  return {
+    text: '',
+    tooltip: '',
+    command: undefined as string | undefined,
+    backgroundColor: undefined as unknown,
+    show: vi.fn(),
+    hide: vi.fn(),
+    dispose: vi.fn(),
+  }
+}
+
 export const window = {
   createWebviewPanel: vi.fn(defaultPanel),
   showErrorMessage: vi.fn(),
   activeTextEditor: undefined as { document: { uri: { fsPath: string } } } | undefined,
   registerTreeDataProvider: vi.fn(() => new Disposable(() => {})),
   createOutputChannel: vi.fn(defaultOutputChannel),
+  createStatusBarItem: vi.fn(defaultStatusBarItem),
+}
+
+export const StatusBarAlignment = {
+  Left: 1,
+  Right: 2,
+} as const
+
+export class ThemeColor {
+  constructor(public readonly id: string) {}
 }
 
 export class EventEmitter<T> {

@@ -152,6 +152,33 @@ describe('PreviewPanelManager.preview', () => {
     expect(daemon.render).toHaveBeenNthCalledWith(2, expect.objectContaining({ templateName: 'welcome.ftlh' }))
   })
 
+  test('emits rendering → idle on a successful preview', async () => {
+    const daemon = fakeDaemon('<p>x</p>')
+    const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
+    const manager = new PreviewPanelManager(buildDeps({ pool }))
+    const states: string[] = []
+    manager.onDidChangeRenderState((s) => states.push(s))
+
+    await manager.preview(vscode.Uri.file('/tmp/t/a.ftlh'))
+
+    expect(states).toEqual(['rendering', 'idle'])
+  })
+
+  test('emits rendering → error when the daemon rejects', async () => {
+    const daemon = {
+      render: vi.fn().mockRejectedValue(new Error('boom')),
+      shutdown: vi.fn(async () => {}),
+    }
+    const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
+    const manager = new PreviewPanelManager(buildDeps({ pool }))
+    const states: string[] = []
+    manager.onDidChangeRenderState((s) => states.push(s))
+
+    await manager.preview(vscode.Uri.file('/tmp/t/a.ftlh'))
+
+    expect(states).toEqual(['rendering', 'error'])
+  })
+
   test('disposing the panel releases the daemon ref so pool can shut down', async () => {
     const daemon = fakeDaemon('<p>x</p>')
     const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)

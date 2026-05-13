@@ -11,6 +11,7 @@ export const PREVIEW_PANEL_VIEW_TYPE = 'freemarkerPreview'
 export interface PreviewPanelDeps {
   pool: DaemonPool
   resolveProject: (uri: vscode.Uri) => RegistryProjectEntry | null
+  extensionUri?: vscode.Uri
   inlineCss?: (html: string) => string
   fixtureDir?: string
 }
@@ -22,38 +23,104 @@ interface ActiveTemplate {
   fixture: Record<string, unknown> | null
 }
 
-export function buildWebviewHtml(webview: { cspSource: string }): string {
+export interface WebviewAssetUris {
+  cspSource: string
+  daisyuiCss: string
+  shellCss: string
+  shellJs: string
+}
+
+export function buildWebviewHtml(uris: WebviewAssetUris): string {
   const csp = [
     `default-src 'none'`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src ${webview.cspSource} 'unsafe-inline'`,
-    `img-src ${webview.cspSource} data:`,
-    `frame-src ${webview.cspSource} data:`,
+    `style-src ${uris.cspSource} 'unsafe-inline'`,
+    `script-src ${uris.cspSource}`,
+    `img-src ${uris.cspSource} data:`,
+    `frame-src ${uris.cspSource} data:`,
   ].join('; ')
 
   return `<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="${csp}" />
-    <title>FreeMarker Preview</title>
-    <style>
-      html, body { margin: 0; padding: 0; height: 100%; }
-      iframe { width: 100%; height: 100vh; border: 0; }
-    </style>
-  </head>
-  <body>
-    <iframe id="preview" srcdoc="<p style='font-family:sans-serif;color:#666;padding:1rem'>Rendering…</p>"></iframe>
-    <script>
-      window.addEventListener('message', (event) => {
-        const msg = event.data;
-        if (msg && msg.type === 'render' && typeof msg.html === 'string') {
-          document.getElementById('preview').srcdoc = msg.html;
-        }
-      });
-    </script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<title>FreeMarker Preview</title>
+<link rel="stylesheet" href="${uris.daisyuiCss}">
+<link rel="stylesheet" href="${uris.shellCss}">
+</head>
+<body>
+<header class="shell-header">
+  <div class="shell-controls">
+    <div class="width-controls" role="group" aria-label="preview width">
+      <button type="button" class="width-btn" data-width="375" title="Mobile (375px)">375</button>
+      <button type="button" class="width-btn" data-width="600" title="Desktop (600px)">600</button>
+      <button type="button" class="width-btn" data-width="full" title="Full container width">Full</button>
+      <input type="number" class="width-custom" id="width-custom" min="200" max="2000" placeholder="px" aria-label="custom width">
+    </div>
+  </div>
+</header>
+<main class="shell-main">
+  <div class="iframe-wrap" id="iframe-wrap" data-mode="phone">
+    <div class="preview-phone">
+      <div class="mockup-phone">
+        <div class="mockup-phone-camera"></div>
+        <div class="mockup-phone-display" id="phone-display">
+          <div class="mail-chrome" id="mail-chrome">
+            <div class="mc-statusbar">
+              <span class="mc-time">9:41</span>
+              <span class="mc-status-icons" aria-hidden="true">
+                <svg class="mc-icon" width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="0.5"/><rect x="4.5" y="5" width="3" height="6" rx="0.5"/><rect x="9" y="3" width="3" height="8" rx="0.5"/><rect x="13.5" y="0" width="3" height="11" rx="0.5"/></svg>
+                <svg class="mc-icon" width="15" height="11" viewBox="0 0 15 11"><path d="M7.5 1.5C4.7 1.5 2.1 2.4 0 4l1.5 1.7C3.2 4.4 5.3 3.7 7.5 3.7s4.3 0.7 6 1.9L15 4C12.9 2.4 10.3 1.5 7.5 1.5zM7.5 5.5c-1.7 0-3.3 0.5-4.6 1.5l1.5 1.7C5.3 8.1 6.4 7.7 7.5 7.7s2.2 0.4 3 1l1.6-1.7C10.8 6 9.2 5.5 7.5 5.5zM7.5 9c-0.9 0-1.7 0.3-2.3 0.9L7.5 11l2.3-1.1C9.2 9.3 8.4 9 7.5 9z"/></svg>
+                <span class="mc-battery"><span class="mc-battery-level"></span></span>
+              </span>
+            </div>
+            <div class="mc-navbar">
+              <button class="mc-nav-btn mc-back" type="button" aria-label="back">
+                <svg width="11" height="18" viewBox="0 0 11 18"><path d="M9.5 1L1.5 9l8 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <span class="mc-nav-arrows">
+                <span class="mc-nav-btn"><svg width="14" height="9" viewBox="0 0 14 9"><path d="M1 7.5L7 1.5l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="mc-nav-btn"><svg width="14" height="9" viewBox="0 0 14 9"><path d="M1 1.5l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              </span>
+            </div>
+            <div class="mc-meta">
+              <span class="mc-message-count">1 Message</span>
+              <span class="mc-summarize">Summarize</span>
+            </div>
+            <div class="mc-sender-row">
+              <div class="mc-sender-avatar" aria-hidden="true"></div>
+              <div class="mc-sender-info">
+                <div class="mc-sender-line">
+                  <span class="mc-sender-name" id="mc-sender-name">Sender Name</span>
+                  <span class="mc-sender-date" id="mc-sender-date">Today</span>
+                </div>
+                <div class="mc-recipient">To: <span class="mc-recipient-name">You</span></div>
+              </div>
+            </div>
+            <div class="mc-subject" id="mc-subject">Email Subject</div>
+          </div>
+          <div class="phone-iframe-container" id="phone-iframe-container">
+            <iframe id="preview" title="email preview"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="preview-plain" id="preview-plain"></div>
+  </div>
+</main>
+<script src="${uris.shellJs}"></script>
+</body>
 </html>`
+}
+
+function resolveAssetUris(panel: vscode.WebviewPanel, extensionUri: vscode.Uri): WebviewAssetUris {
+  const webviewRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'vscode', 'webview')
+  return {
+    cspSource: panel.webview.cspSource,
+    daisyuiCss: panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'daisyui.css')).toString(),
+    shellCss: panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'shell.css')).toString(),
+    shellJs: panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'shell.js')).toString(),
+  }
 }
 
 export class PreviewPanelManager {
@@ -61,6 +128,7 @@ export class PreviewPanelManager {
   private readonly resolveProject: (uri: vscode.Uri) => RegistryProjectEntry | null
   private readonly inlineCss: (html: string) => string
   private readonly fixtureDir: string
+  private readonly extensionUri: vscode.Uri | null
 
   private panel: vscode.WebviewPanel | null = null
   private daemonHandle: DaemonHandle | null = null
@@ -71,6 +139,7 @@ export class PreviewPanelManager {
     this.resolveProject = deps.resolveProject
     this.inlineCss = deps.inlineCss ?? defaultInlineCss
     this.fixtureDir = deps.fixtureDir ?? tmpdir()
+    this.extensionUri = deps.extensionUri ?? null
   }
 
   get activeUri(): vscode.Uri | null {
@@ -110,13 +179,24 @@ export class PreviewPanelManager {
       return this.panel
     }
 
+    const localResourceRoots = this.extensionUri
+      ? [vscode.Uri.joinPath(this.extensionUri, 'dist', 'vscode', 'webview')]
+      : undefined
     const panel = vscode.window.createWebviewPanel(
       PREVIEW_PANEL_VIEW_TYPE,
       `Preview: ${basename(uri.fsPath)}`,
       vscode.ViewColumn.Beside,
-      { enableScripts: true, retainContextWhenHidden: true },
+      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots },
     )
-    panel.webview.html = buildWebviewHtml(panel.webview)
+    const uris = this.extensionUri
+      ? resolveAssetUris(panel, this.extensionUri)
+      : {
+          cspSource: panel.webview.cspSource,
+          daisyuiCss: '',
+          shellCss: '',
+          shellJs: '',
+        }
+    panel.webview.html = buildWebviewHtml(uris)
     this.daemonHandle = this.pool.acquire()
     panel.onDidDispose(() => {
       this.panel = null

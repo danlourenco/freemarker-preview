@@ -1,0 +1,321 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --border: #e5e5e5;
+  --header-bg: #fff;
+  --row-hover: #f0f4ff;
+  --pill-active-bg: #1a4cb3;
+  --pill-active-fg: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #f0f0f0;
+    --muted: #aaa;
+    --border: #333;
+    --header-bg: #222;
+    --row-hover: #2a3550;
+    --pill-active-bg: #4aa3ff;
+    --pill-active-fg: #0a1a30;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body { display: flex; flex-direction: column; }
+
+/* ---------- header (width controls only — title + status come from VS Code) ---------- */
+
+.shell-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.shell-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.width-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.width-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 4px 10px;
+  font: inherit;
+  border-right: 1px solid var(--border);
+}
+
+.width-btn:last-of-type { border-right: 0; }
+.width-btn:hover { background: var(--row-hover); }
+
+.width-btn[aria-pressed="true"] {
+  background: var(--pill-active-bg);
+  color: var(--pill-active-fg);
+}
+
+.width-custom {
+  width: 64px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.width-custom::-webkit-outer-spin-button,
+.width-custom::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---------- main + iframe wrap ---------- */
+
+.shell-main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+  overflow: auto;
+  min-width: 0;
+}
+
+.iframe-wrap {
+  position: relative;
+  width: 100%;
+  max-width: var(--preview-width, 600px);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: max-width 0.15s ease;
+}
+
+iframe {
+  width: 100%;
+  height: 70vh;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+
+/* ---------- phone chrome (DaisyUI mockup-phone) ---------- */
+
+.iframe-wrap[data-mode="plain"] .preview-phone { display: none; }
+.iframe-wrap[data-mode="phone"] .preview-plain { display: none; }
+
+.iframe-wrap[data-mode="phone"] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  max-width: none;
+  width: auto;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.preview-phone .mockup-phone { width: 400px; }
+
+.preview-phone .mockup-phone-display {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.preview-phone .phone-iframe-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview-phone .phone-iframe-container iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+
+/* ---------- fake iOS Mail chrome ---------- */
+
+.mail-chrome {
+  flex: 0 0 auto;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  user-select: none;
+}
+
+.mc-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px 0;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mc-time { letter-spacing: -0.01em; }
+.mc-status-icons { display: inline-flex; align-items: center; gap: 5px; }
+.mc-status-icons .mc-icon { fill: currentColor; }
+
+.mc-battery {
+  position: relative;
+  display: inline-block;
+  width: 22px;
+  height: 11px;
+  border: 1px solid currentColor;
+  border-radius: 2.5px;
+  margin-left: 1px;
+}
+.mc-battery::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 3px;
+  width: 2px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 0 1px 1px 0;
+}
+.mc-battery-level {
+  position: absolute;
+  inset: 1px;
+  background: currentColor;
+  border-radius: 1.5px;
+  width: calc(100% - 2px);
+}
+
+.mc-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  height: 32px;
+  color: #1a4cb3;
+}
+
+.mc-nav-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-nav-arrows {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  background: #f2f2f7;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.mc-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.mc-message-count { color: #8a8a8e; }
+
+.mc-summarize {
+  color: #1a4cb3;
+  font-weight: 500;
+  background: linear-gradient(90deg, #4aa3ff, #c084fc, #fb923c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mc-sender-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-top: 1px solid #e5e5e9;
+}
+
+.mc-sender-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #b59cf7;
+  flex-shrink: 0;
+}
+
+.mc-sender-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.mc-sender-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mc-sender-name {
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-sender-date { color: #8a8a8e; font-size: 11px; flex-shrink: 0; }
+.mc-recipient { color: #8a8a8e; font-size: 11px; }
+.mc-recipient-name { color: #1a1a1a; }
+
+.mc-subject {
+  padding: 4px 16px 10px;
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}

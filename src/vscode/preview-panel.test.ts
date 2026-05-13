@@ -32,11 +32,37 @@ function buildDeps(overrides: Partial<PreviewPanelDeps> = {}): PreviewPanelDeps 
 }
 
 describe('buildWebviewHtml', () => {
+  const uris = {
+    cspSource: 'vscode-webview://abc123',
+    daisyuiCss: 'vscode-webview://abc123/webview/daisyui.css',
+    shellCss: 'vscode-webview://abc123/webview/shell.css',
+    shellJs: 'vscode-webview://abc123/webview/shell.js',
+  }
+
   test('emits a CSP meta tag derived from webview.cspSource', () => {
-    const html = buildWebviewHtml({ cspSource: 'vscode-webview://abc123' } as { cspSource: string })
+    const html = buildWebviewHtml(uris)
 
     expect(html).toMatch(/<meta\s+http-equiv=["']Content-Security-Policy["']/i)
     expect(html).toContain('vscode-webview://abc123')
+  })
+
+  test('loads daisyui, shell.css, and shell.js via the supplied webview URIs', () => {
+    const html = buildWebviewHtml(uris)
+
+    expect(html).toContain(`href="${uris.daisyuiCss}"`)
+    expect(html).toContain(`href="${uris.shellCss}"`)
+    expect(html).toContain(`src="${uris.shellJs}"`)
+  })
+
+  test('includes the mockup-phone chrome and width-toggle controls', () => {
+    const html = buildWebviewHtml(uris)
+
+    expect(html).toContain('mockup-phone')
+    expect(html).toContain('mc-subject')
+    expect(html).toContain('width-controls')
+    expect(html).toMatch(/data-width="375"/)
+    expect(html).toMatch(/data-width="600"/)
+    expect(html).toMatch(/data-width="full"/)
   })
 })
 

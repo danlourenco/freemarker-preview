@@ -17,6 +17,10 @@ const options: BuildOptions = {
 function copyAssets() {
   mkdirSync('dist/vscode/java', { recursive: true })
   cpSync('src/core/java', 'dist/vscode/java', { recursive: true })
+
+  mkdirSync('dist/vscode/webview', { recursive: true })
+  cpSync('src/vscode/webview', 'dist/vscode/webview', { recursive: true })
+  cpSync('node_modules/daisyui/daisyui.css', 'dist/vscode/webview/daisyui.css')
 }
 
 const watch = process.argv.includes('--watch')

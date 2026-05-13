@@ -25,8 +25,14 @@
     "languages": [
       {
         "id": "freemarker",
-        "aliases": ["FreeMarker", "freemarker"],
-        "extensions": [".ftlh", ".ftl"]
+        "aliases": [
+          "FreeMarker",
+          "freemarker"
+        ],
+        "extensions": [
+          ".ftlh",
+          ".ftl"
+        ]
       }
     ],
     "commands": [
@@ -72,6 +78,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.118.0",
+    "daisyui": "^5.5.19",
     "esbuild": "^0.28.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

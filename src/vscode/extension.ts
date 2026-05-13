@@ -40,7 +40,11 @@ export function activate(context: vscode.ExtensionContext): void {
     previewMissingAs: initialEntry?.previewMissingAs ?? 'placeholder',
     freemarkerSettings: initialEntry?.freemarker,
   })
-  const manager = new PreviewPanelManager({ pool, resolveProject })
+  const manager = new PreviewPanelManager({
+    pool,
+    resolveProject,
+    extensionUri: context.extensionUri,
+  })
 
   registerCommands(context, { manager, pool })
   registerSaveWatcher(context, manager)

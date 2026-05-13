@@ -4,6 +4,7 @@ import * as path from 'node:path'
 import { registerCommands } from './commands.ts'
 import { DaemonPool } from './daemon-pool.ts'
 import { PreviewPanelManager } from './preview-panel.ts'
+import { registerSaveWatcher } from './save-watcher.ts'
 import {
   computeRegistryPath,
   findProjectForCwd,
@@ -42,6 +43,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const manager = new PreviewPanelManager({ pool, resolveProject })
 
   registerCommands(context, { manager, pool })
+  registerSaveWatcher(context, manager)
 
   context.subscriptions.push({ dispose: () => void pool.shutdown() })
 }

@@ -29,6 +29,12 @@ export const commands = {
   executeCommand: vi.fn(),
 }
 
+export const workspace = {
+  onDidSaveTextDocument: vi.fn(() => new Disposable(() => {})),
+  getWorkspaceFolder: vi.fn(),
+  workspaceFolders: undefined as unknown,
+}
+
 export const Uri = {
   file: (p: string) => ({ fsPath: p, scheme: 'file', path: p, toString: () => `file://${p}` }),
   parse: (s: string) => ({ fsPath: s, scheme: 'file', path: s, toString: () => s }),

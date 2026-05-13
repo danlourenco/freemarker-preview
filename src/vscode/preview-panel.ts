@@ -73,6 +73,10 @@ export class PreviewPanelManager {
     this.fixtureDir = deps.fixtureDir ?? tmpdir()
   }
 
+  get activeUri(): vscode.Uri | null {
+    return this.active?.uri ?? null
+  }
+
   async preview(uri: vscode.Uri): Promise<void> {
     const project = this.resolveProject(uri)
     if (!project) {

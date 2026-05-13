@@ -218,64 +218,11 @@
     if (iframe.parentElement !== targetContainer) {
       targetContainer.appendChild(iframe);
     }
-    applyPhoneZoom();
-  }
-
-  /**
-   * Match what a real mobile mail client does for emails that lack
-   * `<meta name="viewport" content="width=device-width">`: render at a
-   * 980px virtual viewport and scale-to-fit. That's why a viewport-less
-   * email looks tiny on your phone — clients fake a desktop viewport and
-   * shrink it. We do the same here so the preview matches reality.
-   *
-   * Templates that DO declare a device-width viewport are authored for
-   * mobile; we render them at the native 375 CSS-px viewport (no scale).
-   *
-   * Only applies in phone mode — desktop / full widths render unscaled.
-   */
-  const VIRTUAL_VIEWPORT_PX = 980;
-  function applyPhoneZoom() {
-    const inPhone = iframeWrap.dataset.mode === 'phone';
-    if (!inPhone) {
-      iframe.style.width = '';
-      iframe.style.height = '';
-      iframe.style.transform = '';
-      iframe.style.transformOrigin = '';
-      return;
-    }
-    let hasDeviceWidthViewport = false;
-    try {
-      const doc = iframe.contentDocument;
-      const meta = doc && doc.querySelector('head meta[name="viewport"]');
-      hasDeviceWidthViewport =
-        !!meta && /width\s*=\s*device-width/i.test(meta.getAttribute('content') || '');
-    } catch {
-      /* iframe not ready / cross-origin — fall through to scaled view */
-    }
-    if (hasDeviceWidthViewport) {
-      iframe.style.width = '100%';
-      iframe.style.height = '100%';
-      iframe.style.transform = '';
-      iframe.style.transformOrigin = '';
-      return;
-    }
-    // Scale relative to the iframe's actual container (phone-iframe-container),
-    // not the whole phone display — the chrome above the iframe takes up
-    // some of that vertical space.
-    const container = document.getElementById('phone-iframe-container');
-    const w = container.clientWidth || 375;
-    const h = container.clientHeight || 600;
-    const scale = w / VIRTUAL_VIEWPORT_PX;
-    iframe.style.width = `${VIRTUAL_VIEWPORT_PX}px`;
-    iframe.style.height = `${h / scale}px`;
-    iframe.style.transform = `scale(${scale})`;
-    iframe.style.transformOrigin = '0 0';
   }
 
   /**
    * Pull the email's <title> into the chrome's subject row. Best-effort —
-   * if the template has no <title>, leave the placeholder. Same for
-   * sender extraction (currently just a placeholder).
+   * if the template has no <title>, fall back to the placeholder.
    */
   function updateMailChrome() {
     const subjectEl = document.getElementById('mc-subject');
@@ -290,11 +237,7 @@
     }
   }
 
-  // Re-apply zoom logic + chrome text after each render lands in the iframe.
-  iframe.addEventListener('load', () => {
-    applyPhoneZoom();
-    updateMailChrome();
-  });
+  iframe.addEventListener('load', updateMailChrome);
 
   widthBtns.forEach((btn) => {
     btn.addEventListener('click', () => {

@@ -1,0 +1,35 @@
+.git/**
+.github/**
+.gitignore
+.vscode/**
+.agents/**
+.claude/**
+.vscodeignore
+**/.DS_Store
+
+DESIGN.md
+CLAUDE.md
+dist/*.vsix
+
+# Source — the bundle in dist/vscode/ is what ships
+src/**
+
+# Dev/build configs
+tsconfig.json
+vitest.config.ts
+vscode-build.config.ts
+plans/**
+docs/**
+fixtures/**
+skills-lock.json
+node_modules/**
+package-lock.json
+
+# Keep (NOT excluded):
+#   dist/vscode/extension.cjs
+#   dist/vscode/extension.cjs.map
+#   dist/vscode/java/Render.java
+#   dist/vscode/webview/*
+#   package.json
+#   README.md
+#   LICENSE (when present)

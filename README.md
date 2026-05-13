@@ -35,6 +35,45 @@ npm install --save-dev freemarker-preview
 npm install -g freemarker-preview
 ```
 
+## VS Code extension (sideload)
+
+Same renderer, packaged as a sideloadable VS Code extension. **Not** on the Marketplace — distributed as a `.vsix` from GitHub Releases.
+
+```bash
+# 1. Download freemarker-preview-<version>.vsix from
+#    https://github.com/danlourenco/freemarker-preview/releases
+# 2. Install:
+code --install-extension freemarker-preview-<version>.vsix
+# 3. Reload VS Code (Cmd/Ctrl+Shift+P → "Developer: Reload Window")
+```
+
+What you get:
+
+- **Right-click** any `.ftlh`/`.ftl` file in the editor or Explorer → **FreeMarker: Preview Template**. Opens a webview beside the editor with the same phone chrome + width toggles as `freemarker-preview dev`.
+- **Save** the source template → re-render within ~150ms.
+- **Explorer sidebar**: a "FreeMarker Templates" tree view lists every `.ftlh`/`.ftl` under the registered `templatesRoot`. Click to preview.
+- **Status bar**: rendering / idle / error indicator on the right. Click to refresh.
+- **Diagnostics**: FreeMarker errors surface as red squiggles on the source file with hover messages.
+- **Output channel**: "FreeMarker" in the Output panel — surfaces JBang stderr and activation diagnostics if something goes wrong.
+
+### Troubleshooting
+
+- **Right-click menu doesn't show "Preview Template"**: the file extension must be `.ftlh` or `.ftl`. The menu is gated on extension, not on language ID.
+- **"JBang daemon crashed twice in a row"**: open the **FreeMarker** Output channel — the JBang stderr there will show the real cause (usually missing JBang or a Render.java compile error). Install JBang per the [Prerequisites](#prerequisites) section.
+- **TreeView shows "Run `freemarker-preview init` to register this workspace"**: no entry exists for this folder in `~/.config/freemarker-preview/projects.json`. Run `freemarker-preview init` in the project root with the CLI to register it.
+- **Wrong `templatesRoot`**: edit `~/.config/freemarker-preview/projects.json` directly — change the `templatesRoot` for your project entry. The extension re-reads the registry per preview.
+- **Extension didn't pick up a code change**: in the dev host, use Cmd/Ctrl+R to reload the window. For new contributions in `package.json`, fully relaunch the dev host (close the `[Extension Development Host]` window and re-launch).
+
+### Building the .vsix yourself
+
+```bash
+git clone https://github.com/danlourenco/freemarker-preview.git
+cd freemarker-preview
+npm install
+npm run package:vscode      # → dist/freemarker-preview-<version>.vsix
+code --install-extension dist/freemarker-preview-*.vsix
+```
+
 ## Quickstart
 
 ```bash

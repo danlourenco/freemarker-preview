@@ -92,10 +92,13 @@ describe('PreviewPanelManager.preview', () => {
     const panel = (vscode.window.createWebviewPanel as unknown as {
       mock: { results: { value: { webview: { postMessage: ReturnType<typeof vi.fn> } } }[] }
     }).mock.results[0].value
-    expect(panel.webview.postMessage).toHaveBeenCalledWith({
-      type: 'render',
-      html: 'INLINED:<p>raw</p>',
-    })
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'render',
+        html: 'INLINED:<p>raw</p>',
+        templateUriPath: '/tmp/t/welcome.ftlh',
+      }),
+    )
   })
 
   test('previewing a second template reuses the single shared panel', async () => {

@@ -5,6 +5,12 @@
   const widthBtns = document.querySelectorAll('.width-btn');
   const widthCustom = document.getElementById('width-custom');
 
+  let persisted = (vscode && vscode.getState && vscode.getState()) || {};
+  function saveState(patch) {
+    persisted = Object.assign({}, persisted, patch);
+    if (vscode && vscode.setState) vscode.setState(persisted);
+  }
+
   /* ---------- width controls ---------- */
 
   function applyWidth(width) {
@@ -42,12 +48,13 @@
     if (iframe && iframe.parentElement !== target) target.appendChild(iframe);
   }
 
-  let currentWidth = '375';
+  let currentWidth = persisted.width || '375';
 
   widthBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       currentWidth = btn.dataset.width;
       applyWidth(currentWidth);
+      saveState({ width: currentWidth });
       if (vscode) vscode.postMessage({ type: 'widthChange', value: currentWidth });
     });
   });
@@ -57,6 +64,7 @@
     if (Number.isFinite(n) && n > 0) {
       currentWidth = String(n);
       applyWidth(currentWidth);
+      saveState({ width: currentWidth });
       if (vscode) vscode.postMessage({ type: 'widthChange', value: currentWidth });
     }
   });
@@ -88,6 +96,9 @@
       iframe.removeEventListener('load', updateMailChrome);
       iframe.addEventListener('load', updateMailChrome, { once: true });
       iframe.srcdoc = msg.html;
+      if (typeof msg.templateUriPath === 'string') {
+        saveState({ templateUriPath: msg.templateUriPath });
+      }
     }
   });
 

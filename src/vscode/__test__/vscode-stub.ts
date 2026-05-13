@@ -47,6 +47,7 @@ export const window = {
   registerTreeDataProvider: vi.fn(() => new Disposable(() => {})),
   createOutputChannel: vi.fn(defaultOutputChannel),
   createStatusBarItem: vi.fn(defaultStatusBarItem),
+  registerWebviewPanelSerializer: vi.fn(() => new Disposable(() => {})),
 }
 
 export const StatusBarAlignment = {

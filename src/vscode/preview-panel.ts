@@ -1,5 +1,6 @@
 import * as vscode from 'vscode'
 import { basename, join, relative } from 'node:path'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { materializeFixture } from '../core/fixtures.ts'
 import { inlineCss as defaultInlineCss } from '../core/inline.ts'
@@ -133,6 +134,21 @@ export function buildWebviewHtml(uris: WebviewAssetUris): string {
 </html>`
 }
 
+function buildNotFoundHtml(webview: { cspSource: string }, missingPath: string | null): string {
+  const csp = `default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'`
+  const detail = missingPath
+    ? `<code style="font-family: ui-monospace, Menlo, monospace; word-break: break-all">${missingPath.replace(/[<>&]/g, '')}</code>`
+    : 'The previously-previewed template no longer has a recorded path.'
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="${csp}">
+<style>body{font-family:-apple-system,system-ui,sans-serif;padding:24px;color:#555}h2{margin-top:0}</style>
+</head><body>
+<h2>Template not found</h2>
+<p>${detail}</p>
+<p>Right-click another <code>.ftlh</code> file → <strong>FreeMarker: Preview Template</strong> to start a new preview.</p>
+</body></html>`
+}
+
 function resolveAssetUris(panel: vscode.WebviewPanel, extensionUri: vscode.Uri): WebviewAssetUris {
   const webviewRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'vscode', 'webview')
   const bust = Date.now()
@@ -237,22 +253,23 @@ export class PreviewPanelManager {
     await this.renderActive()
   }
 
-  private ensurePanel(uri: vscode.Uri): vscode.WebviewPanel {
-    if (this.panel) {
-      this.panel.title = `Preview: ${basename(uri.fsPath)}`
-      this.panel.reveal(vscode.ViewColumn.Beside, true)
-      return this.panel
+  async restoreFromState(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
+    const tplPath =
+      state && typeof state === 'object' && 'templateUriPath' in state
+        ? (state as { templateUriPath?: unknown }).templateUriPath
+        : null
+
+    if (typeof tplPath !== 'string' || !existsSync(tplPath)) {
+      panel.webview.html = buildNotFoundHtml(panel.webview, typeof tplPath === 'string' ? tplPath : null)
+      return
     }
 
-    const localResourceRoots = this.extensionUri
-      ? [vscode.Uri.joinPath(this.extensionUri, 'dist', 'vscode', 'webview')]
-      : undefined
-    const panel = vscode.window.createWebviewPanel(
-      PREVIEW_PANEL_VIEW_TYPE,
-      `Preview: ${basename(uri.fsPath)}`,
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots },
-    )
+    const uri = vscode.Uri.file(tplPath)
+    this.adoptPanel(panel, uri)
+    await this.preview(uri)
+  }
+
+  private adoptPanel(panel: vscode.WebviewPanel, uri: vscode.Uri): void {
     const uris = this.extensionUri
       ? resolveAssetUris(panel, this.extensionUri)
       : {
@@ -262,8 +279,7 @@ export class PreviewPanelManager {
           shellJs: '',
         }
     panel.webview.html = buildWebviewHtml(uris)
-    if (!this.pool) throw new Error('pool not initialized — preview() must run first')
-    this.daemonHandle = this.pool.acquire()
+    panel.title = `Preview: ${basename(uri.fsPath)}`
     panel.onDidDispose(() => {
       this.panel = null
       this.active = null
@@ -271,7 +287,29 @@ export class PreviewPanelManager {
       this.daemonHandle = null
     })
     this.panel = panel
-    return panel
+  }
+
+  private ensurePanel(uri: vscode.Uri): vscode.WebviewPanel {
+    if (!this.panel) {
+      const localResourceRoots = this.extensionUri
+        ? [vscode.Uri.joinPath(this.extensionUri, 'dist', 'vscode', 'webview')]
+        : undefined
+      const panel = vscode.window.createWebviewPanel(
+        PREVIEW_PANEL_VIEW_TYPE,
+        `Preview: ${basename(uri.fsPath)}`,
+        vscode.ViewColumn.Beside,
+        { enableScripts: true, retainContextWhenHidden: true, localResourceRoots },
+      )
+      this.adoptPanel(panel, uri)
+    } else {
+      this.panel.title = `Preview: ${basename(uri.fsPath)}`
+      this.panel.reveal(vscode.ViewColumn.Beside, true)
+    }
+    if (!this.daemonHandle) {
+      if (!this.pool) throw new Error('pool not initialized — preview() must run first')
+      this.daemonHandle = this.pool.acquire()
+    }
+    return this.panel!
   }
 
   private async renderActive(): Promise<void> {
@@ -288,7 +326,11 @@ export class PreviewPanelManager {
         fixturePath,
       })
       const html = this.inlineCss(result.html)
-      await this.panel.webview.postMessage({ type: 'render', html })
+      await this.panel.webview.postMessage({
+        type: 'render',
+        html,
+        templateUriPath: activeUri.fsPath,
+      })
       this.diagnostics?.clear(activeUri)
       this._onStateChange.fire('idle')
     } catch (err) {

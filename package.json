@@ -20,7 +20,8 @@
     "onCommand:freemarker.preview",
     "onCommand:freemarker.refresh",
     "onCommand:freemarker.stop",
-    "onView:freemarkerTemplates"
+    "onView:freemarkerTemplates",
+    "onWebviewPanel:freemarkerPreview"
   ],
   "contributes": {
     "languages": [

@@ -8,6 +8,8 @@ import { registerSaveWatcher } from './save-watcher.ts'
 import { TemplateTreeProvider } from './tree-provider.ts'
 import { StatusBarManager } from './status-bar.ts'
 import { DiagnosticsManager } from './diagnostics.ts'
+import { createPanelSerializer } from './panel-serializer.ts'
+import { PREVIEW_PANEL_VIEW_TYPE } from './preview-panel.ts'
 import {
   computeRegistryPath,
   findProjectForCwd,
@@ -80,6 +82,10 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('freemarkerTemplates', treeProvider),
     vscode.commands.registerCommand('freemarker.refreshTree', () => treeProvider.refresh()),
+  )
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewPanelSerializer(PREVIEW_PANEL_VIEW_TYPE, createPanelSerializer(manager)),
   )
 
   context.subscriptions.push({ dispose: () => void manager.shutdownPool() })

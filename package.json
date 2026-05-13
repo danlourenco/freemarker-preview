@@ -19,7 +19,8 @@
   "activationEvents": [
     "onCommand:freemarker.preview",
     "onCommand:freemarker.refresh",
-    "onCommand:freemarker.stop"
+    "onCommand:freemarker.stop",
+    "onView:freemarkerTemplates"
   ],
   "contributes": {
     "languages": [
@@ -47,8 +48,21 @@
       {
         "command": "freemarker.stop",
         "title": "FreeMarker: Stop Daemon"
+      },
+      {
+        "command": "freemarker.refreshTree",
+        "title": "FreeMarker: Refresh Templates",
+        "icon": "$(refresh)"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "freemarkerTemplates",
+          "name": "FreeMarker Templates"
+        }
+      ]
+    },
     "menus": {
       "editor/context": [
         {
@@ -61,6 +75,13 @@
         {
           "when": "resourceExtname == .ftlh || resourceExtname == .ftl",
           "command": "freemarker.preview",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "freemarker.refreshTree",
+          "when": "view == freemarkerTemplates",
           "group": "navigation"
         }
       ]

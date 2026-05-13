@@ -3,7 +3,6 @@ import * as vscode from 'vscode'
 import { registerCommands } from './commands.ts'
 import { prereqsOkOrWarn } from './prereqs-check.ts'
 import type { PreviewPanelManager } from './preview-panel.ts'
-import type { DaemonPool } from './daemon-pool.ts'
 
 vi.mock('./prereqs-check.ts', () => ({ prereqsOkOrWarn: vi.fn(() => true) }))
 
@@ -14,20 +13,17 @@ function fakeContext() {
 function fakeManager(): PreviewPanelManager & {
   preview: ReturnType<typeof vi.fn>
   refresh: ReturnType<typeof vi.fn>
+  shutdownPool: ReturnType<typeof vi.fn>
 } {
   return {
     preview: vi.fn(async () => {}),
     refresh: vi.fn(async () => {}),
+    shutdownPool: vi.fn(async () => {}),
   } as unknown as PreviewPanelManager & {
     preview: ReturnType<typeof vi.fn>
     refresh: ReturnType<typeof vi.fn>
+    shutdownPool: ReturnType<typeof vi.fn>
   }
-}
-
-function fakePool(): DaemonPool & { shutdown: ReturnType<typeof vi.fn> } {
-  return {
-    shutdown: vi.fn(async () => {}),
-  } as unknown as DaemonPool & { shutdown: ReturnType<typeof vi.fn> }
 }
 
 function getRegisteredHandler(commandId: string): (...args: unknown[]) => unknown {
@@ -45,7 +41,7 @@ describe('registerCommands — freemarker.preview', () => {
   test('registers freemarker.preview with the VS Code command registry', () => {
     const context = fakeContext()
 
-    registerCommands(context, { manager: fakeManager(), pool: fakePool() })
+    registerCommands(context, { manager: fakeManager() })
 
     expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
       'freemarker.preview',
@@ -57,7 +53,7 @@ describe('registerCommands — freemarker.preview', () => {
   test('preview handler delegates to manager.preview with the URI', () => {
     ;(prereqsOkOrWarn as unknown as { mockReturnValue: (v: boolean) => void }).mockReturnValue(true)
     const manager = fakeManager()
-    registerCommands(fakeContext(), { manager, pool: fakePool() })
+    registerCommands(fakeContext(), { manager })
 
     const handler = getRegisteredHandler('freemarker.preview')
     const uri = vscode.Uri.file('/tmp/templates/welcome.ftlh')
@@ -69,7 +65,7 @@ describe('registerCommands — freemarker.preview', () => {
   test('preview handler short-circuits and does not call manager when prereqs fail', () => {
     ;(prereqsOkOrWarn as unknown as { mockReturnValue: (v: boolean) => void }).mockReturnValue(false)
     const manager = fakeManager()
-    registerCommands(fakeContext(), { manager, pool: fakePool() })
+    registerCommands(fakeContext(), { manager })
 
     const handler = getRegisteredHandler('freemarker.preview')
     handler(vscode.Uri.file('/tmp/templates/welcome.ftlh'))
@@ -84,7 +80,7 @@ describe('registerCommands — freemarker.preview', () => {
     ;(vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = {
       document: { uri: editorUri },
     }
-    registerCommands(fakeContext(), { manager, pool: fakePool() })
+    registerCommands(fakeContext(), { manager })
 
     const handler = getRegisteredHandler('freemarker.preview')
     handler() // no argument — Command Palette case
@@ -97,7 +93,7 @@ describe('registerCommands — freemarker.preview', () => {
     ;(prereqsOkOrWarn as unknown as { mockReturnValue: (v: boolean) => void }).mockReturnValue(true)
     const manager = fakeManager()
     ;(vscode.window as unknown as { activeTextEditor: unknown }).activeTextEditor = undefined
-    registerCommands(fakeContext(), { manager, pool: fakePool() })
+    registerCommands(fakeContext(), { manager })
 
     const handler = getRegisteredHandler('freemarker.preview')
     handler()
@@ -108,19 +104,19 @@ describe('registerCommands — freemarker.preview', () => {
 
   test('refresh command calls manager.refresh()', () => {
     const manager = fakeManager()
-    registerCommands(fakeContext(), { manager, pool: fakePool() })
+    registerCommands(fakeContext(), { manager })
 
     getRegisteredHandler('freemarker.refresh')()
 
     expect(manager.refresh).toHaveBeenCalledTimes(1)
   })
 
-  test('stop command calls pool.shutdown()', () => {
-    const pool = fakePool()
-    registerCommands(fakeContext(), { manager: fakeManager(), pool })
+  test('stop command calls manager.shutdownPool()', () => {
+    const manager = fakeManager()
+    registerCommands(fakeContext(), { manager })
 
     getRegisteredHandler('freemarker.stop')()
 
-    expect(pool.shutdown).toHaveBeenCalledTimes(1)
+    expect(manager.shutdownPool).toHaveBeenCalledTimes(1)
   })
 })

@@ -18,10 +18,62 @@ function defaultPanel() {
   }
 }
 
+function defaultOutputChannel() {
+  return {
+    appendLine: vi.fn(),
+    append: vi.fn(),
+    show: vi.fn(),
+    clear: vi.fn(),
+    dispose: vi.fn(),
+  }
+}
+
 export const window = {
   createWebviewPanel: vi.fn(defaultPanel),
   showErrorMessage: vi.fn(),
   activeTextEditor: undefined as { document: { uri: { fsPath: string } } } | undefined,
+  registerTreeDataProvider: vi.fn(() => new Disposable(() => {})),
+  createOutputChannel: vi.fn(defaultOutputChannel),
+}
+
+export class EventEmitter<T> {
+  private listeners: ((value: T) => unknown)[] = []
+  readonly event = (listener: (value: T) => unknown) => {
+    this.listeners.push(listener)
+    return new Disposable(() => {
+      this.listeners = this.listeners.filter((l) => l !== listener)
+    })
+  }
+  fire(value: T): void {
+    for (const l of this.listeners) l(value)
+  }
+  dispose(): void {
+    this.listeners = []
+  }
+}
+
+export const TreeItemCollapsibleState = {
+  None: 0,
+  Collapsed: 1,
+  Expanded: 2,
+} as const
+
+export class TreeItem {
+  label: string
+  collapsibleState: number
+  command?: { command: string; title: string; arguments?: unknown[] }
+  resourceUri?: { fsPath: string }
+  contextValue?: string
+  tooltip?: string
+  iconPath?: unknown
+  constructor(label: string, collapsibleState = TreeItemCollapsibleState.None) {
+    this.label = label
+    this.collapsibleState = collapsibleState
+  }
+}
+
+export const ThemeIcon = class {
+  constructor(public readonly id: string) {}
 }
 
 export const commands = {

@@ -3,17 +3,28 @@ import { basename, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { materializeFixture } from '../core/fixtures.ts'
 import { inlineCss as defaultInlineCss } from '../core/inline.ts'
+import type { DaemonOptions } from '../core/daemon.ts'
 import type { RegistryProjectEntry } from '../core/registry.ts'
 import type { DaemonHandle, DaemonPool } from './daemon-pool.ts'
 
 export const PREVIEW_PANEL_VIEW_TYPE = 'freemarkerPreview'
 
 export interface PreviewPanelDeps {
-  pool: DaemonPool
+  /**
+   * Either an already-built pool (for tests / explicit ownership) or a
+   * factory the manager calls lazily once it knows the project's
+   * templatesRoot. Use the factory in production: the daemon's
+   * templatesRoot must come from the resolved registry entry, not
+   * guessed at activation time.
+   */
+  pool?: DaemonPool
+  poolFactory?: (opts: DaemonOptions) => DaemonPool
   resolveProject: (uri: vscode.Uri) => RegistryProjectEntry | null
   extensionUri?: vscode.Uri
   inlineCss?: (html: string) => string
   fixtureDir?: string
+  /** Forwarded into DaemonOptions when the pool is created lazily. */
+  daemonOptionsExtra?: Omit<DaemonOptions, 'templatesRoot'>
 }
 
 interface ActiveTemplate {
@@ -124,22 +135,58 @@ function resolveAssetUris(panel: vscode.WebviewPanel, extensionUri: vscode.Uri):
 }
 
 export class PreviewPanelManager {
-  private readonly pool: DaemonPool
+  private readonly explicitPool: DaemonPool | null
+  private readonly poolFactory: ((opts: DaemonOptions) => DaemonPool) | null
+  private readonly daemonOptionsExtra: Omit<DaemonOptions, 'templatesRoot'>
   private readonly resolveProject: (uri: vscode.Uri) => RegistryProjectEntry | null
   private readonly inlineCss: (html: string) => string
   private readonly fixtureDir: string
   private readonly extensionUri: vscode.Uri | null
 
+  private pool: DaemonPool | null = null
+  private poolTemplatesRoot: string | null = null
   private panel: vscode.WebviewPanel | null = null
   private daemonHandle: DaemonHandle | null = null
   private active: ActiveTemplate | null = null
 
   constructor(deps: PreviewPanelDeps) {
-    this.pool = deps.pool
+    this.explicitPool = deps.pool ?? null
+    this.poolFactory = deps.poolFactory ?? null
+    this.daemonOptionsExtra = deps.daemonOptionsExtra ?? {}
+    if (!this.explicitPool && !this.poolFactory) {
+      throw new Error('PreviewPanelManager: either `pool` or `poolFactory` is required')
+    }
     this.resolveProject = deps.resolveProject
     this.inlineCss = deps.inlineCss ?? defaultInlineCss
     this.fixtureDir = deps.fixtureDir ?? tmpdir()
     this.extensionUri = deps.extensionUri ?? null
+    if (this.explicitPool) this.pool = this.explicitPool
+  }
+
+  /** For freemarker.stop. Shuts down whichever pool is live (factory or explicit). */
+  async shutdownPool(): Promise<void> {
+    const pool = this.pool
+    this.pool = this.explicitPool // restore explicit pool reference if any (factory mode → null)
+    this.poolTemplatesRoot = null
+    this.daemonHandle?.release()
+    this.daemonHandle = null
+    if (pool) await pool.shutdown()
+  }
+
+  private ensurePoolFor(templatesRoot: string): DaemonPool {
+    if (this.explicitPool) return this.explicitPool
+    if (this.pool && this.poolTemplatesRoot === templatesRoot) return this.pool
+    if (this.pool && this.poolTemplatesRoot !== templatesRoot) {
+      // Project's templatesRoot changed — drop the old pool.
+      void this.pool.shutdown()
+      this.pool = null
+      this.daemonHandle?.release()
+      this.daemonHandle = null
+    }
+    if (!this.poolFactory) throw new Error('no pool factory configured')
+    this.pool = this.poolFactory({ templatesRoot, ...this.daemonOptionsExtra })
+    this.poolTemplatesRoot = templatesRoot
+    return this.pool
   }
 
   get activeUri(): vscode.Uri | null {
@@ -154,6 +201,8 @@ export class PreviewPanelManager {
       )
       return
     }
+
+    this.ensurePoolFor(project.templatesRoot)
 
     const templateName = relative(project.templatesRoot, uri.fsPath)
     this.active = {
@@ -197,6 +246,7 @@ export class PreviewPanelManager {
           shellJs: '',
         }
     panel.webview.html = buildWebviewHtml(uris)
+    if (!this.pool) throw new Error('pool not initialized — preview() must run first')
     this.daemonHandle = this.pool.acquire()
     panel.onDidDispose(() => {
       this.panel = null

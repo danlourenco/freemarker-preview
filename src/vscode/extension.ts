@@ -5,6 +5,7 @@ import { registerCommands } from './commands.ts'
 import { DaemonPool } from './daemon-pool.ts'
 import { PreviewPanelManager } from './preview-panel.ts'
 import { registerSaveWatcher } from './save-watcher.ts'
+import { TemplateTreeProvider } from './tree-provider.ts'
 import {
   computeRegistryPath,
   findProjectForCwd,
@@ -15,41 +16,65 @@ import {
 declare const __dirname: string
 
 export function activate(context: vscode.ExtensionContext): void {
+  const output = vscode.window.createOutputChannel('FreeMarker')
+  context.subscriptions.push(output)
+  output.appendLine(`[freemarker-preview] activated at ${new Date().toISOString()}`)
+
   const registryPath = computeRegistryPath({
     platform: process.platform,
     homedir: homedir(),
     env: process.env,
   })
+  output.appendLine(`[freemarker-preview] registry path: ${registryPath}`)
 
   const resolveProject = (uri: vscode.Uri): RegistryProjectEntry | null => {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri)
     const cwd = workspaceFolder?.uri.fsPath ?? uri.fsPath
     const registry = loadRegistry(registryPath)
-    return findProjectForCwd(cwd, registry)?.entry ?? null
+    const match = findProjectForCwd(cwd, registry)
+    output.appendLine(
+      `[freemarker-preview] resolveProject(${uri.fsPath}) under cwd=${cwd} → ${match ? match.projectPath : 'NULL'}`,
+    )
+    return match?.entry ?? null
   }
 
-  const firstWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
-  const initialEntry = findProjectForCwd(firstWorkspaceRoot, loadRegistry(registryPath))?.entry
-  const templatesRoot = initialEntry?.templatesRoot ?? firstWorkspaceRoot
-
   const javaScriptPath = path.join(__dirname, 'java', 'Render.java')
+  output.appendLine(`[freemarker-preview] javaScriptPath: ${javaScriptPath}`)
 
-  const pool = new DaemonPool({
-    templatesRoot,
-    javaScriptPath,
-    previewMissingAs: initialEntry?.previewMissingAs ?? 'placeholder',
-    freemarkerSettings: initialEntry?.freemarker,
-  })
   const manager = new PreviewPanelManager({
-    pool,
+    poolFactory: (opts) => {
+      output.appendLine(
+        `[freemarker-preview] spawning daemon pool with templatesRoot=${opts.templatesRoot}, javaScriptPath=${opts.javaScriptPath}`,
+      )
+      return new DaemonPool({
+        ...opts,
+        onStderr: (chunk) => output.append(`[daemon stderr] ${chunk}`),
+      })
+    },
+    daemonOptionsExtra: {
+      javaScriptPath,
+      previewMissingAs: 'placeholder',
+    },
     resolveProject,
     extensionUri: context.extensionUri,
   })
 
-  registerCommands(context, { manager, pool })
+  registerCommands(context, { manager })
   registerSaveWatcher(context, manager)
 
-  context.subscriptions.push({ dispose: () => void pool.shutdown() })
+  const treeProvider = new TemplateTreeProvider({
+    getTemplatesRoot: () => {
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      if (!cwd) return null
+      return findProjectForCwd(cwd, loadRegistry(registryPath))?.entry.templatesRoot ?? null
+    },
+  })
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider('freemarkerTemplates', treeProvider),
+    vscode.commands.registerCommand('freemarker.refreshTree', () => treeProvider.refresh()),
+  )
+
+  context.subscriptions.push({ dispose: () => void manager.shutdownPool() })
 }
 
 export function deactivate(): void {}

@@ -10,6 +10,13 @@ export interface DaemonOptions {
   javaScriptPath?: string
   previewMissingAs?: PreviewMissingAs
   freemarkerSettings?: Record<string, string>
+  /**
+   * Optional sink for raw stderr from the JBang process. Used by the VS Code
+   * extension to surface JBang/Render.java errors in an Output channel —
+   * otherwise crashes only show up in the debug log. CLI consumers rely on
+   * the existing debugLog path and ignore this.
+   */
+  onStderr?: (chunk: string) => void
 }
 
 export interface DaemonRenderRequest {
@@ -42,6 +49,7 @@ export class RenderDaemon {
   private readonly javaScriptPath: string
   private readonly missingMode: PreviewMissingAs
   private readonly freemarkerSettings: Record<string, string>
+  private readonly onStderr: ((chunk: string) => void) | undefined
 
   private proc: ChildProcessWithoutNullStreams | null = null
   private buffer = ''
@@ -57,6 +65,7 @@ export class RenderDaemon {
     this.javaScriptPath = opts.javaScriptPath ?? defaultJavaScriptPath()
     this.missingMode = opts.previewMissingAs ?? 'error'
     this.freemarkerSettings = opts.freemarkerSettings ?? {}
+    this.onStderr = opts.onStderr
   }
 
   render(req: DaemonRenderRequest): Promise<RenderResult> {
@@ -163,6 +172,7 @@ export class RenderDaemon {
     proc.stdout.on('data', (chunk: string) => this.onStdout(chunk))
     proc.stderr.on('data', (chunk: string) => {
       debugLog(`[daemon stderr] ${chunk}`)
+      this.onStderr?.(chunk)
     })
     proc.on('close', (code, signal) => this.onClose(code, signal))
     proc.on('error', (err) => {

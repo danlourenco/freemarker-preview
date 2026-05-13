@@ -1,15 +1,13 @@
 import * as vscode from 'vscode'
 import { prereqsOkOrWarn } from './prereqs-check.ts'
 import type { PreviewPanelManager } from './preview-panel.ts'
-import type { DaemonPool } from './daemon-pool.ts'
 
 export interface CommandDeps {
   manager: PreviewPanelManager
-  pool: DaemonPool
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandDeps): void {
-  const { manager, pool } = deps
+  const { manager } = deps
 
   context.subscriptions.push(
     vscode.commands.registerCommand('freemarker.preview', (uri?: vscode.Uri) => {
@@ -27,7 +25,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       void manager.refresh()
     }),
     vscode.commands.registerCommand('freemarker.stop', () => {
-      void pool.shutdown()
+      void manager.shutdownPool()
     }),
   )
 }

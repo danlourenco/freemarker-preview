@@ -213,10 +213,10 @@
     // a one-time iframe reload in some browsers, which is acceptable — the
     // user explicitly toggled width.
     const phoneMode = active === '375';
-    const phoneDisplay = document.getElementById('phone-display');
+    const phoneIframeContainer = document.getElementById('phone-iframe-container');
     const previewPlain = document.getElementById('preview-plain');
     iframeWrap.dataset.mode = phoneMode ? 'phone' : 'plain';
-    const targetContainer = phoneMode ? phoneDisplay : previewPlain;
+    const targetContainer = phoneMode ? phoneIframeContainer : previewPlain;
     if (iframe.parentElement !== targetContainer) {
       targetContainer.appendChild(iframe);
     }
@@ -261,9 +261,12 @@
       iframe.style.transformOrigin = '';
       return;
     }
-    const display = document.getElementById('phone-display');
-    const w = display.clientWidth || 375;
-    const h = display.clientHeight || 600;
+    // Scale relative to the iframe's actual container (phone-iframe-container),
+    // not the whole phone display — the chrome above the iframe takes up
+    // some of that vertical space.
+    const container = document.getElementById('phone-iframe-container');
+    const w = container.clientWidth || 375;
+    const h = container.clientHeight || 600;
     const scale = w / VIRTUAL_VIEWPORT_PX;
     iframe.style.width = `${VIRTUAL_VIEWPORT_PX}px`;
     iframe.style.height = `${h / scale}px`;
@@ -271,9 +274,29 @@
     iframe.style.transformOrigin = '0 0';
   }
 
-  // Re-apply zoom logic after each render lands in the iframe — the new
-  // document may or may not have a viewport meta tag.
-  iframe.addEventListener('load', applyPhoneZoom);
+  /**
+   * Pull the email's <title> into the chrome's subject row. Best-effort —
+   * if the template has no <title>, leave the placeholder. Same for
+   * sender extraction (currently just a placeholder).
+   */
+  function updateMailChrome() {
+    const subjectEl = document.getElementById('mc-subject');
+    if (!subjectEl) return;
+    try {
+      const doc = iframe.contentDocument;
+      const title = doc && doc.querySelector('title');
+      const text = title && title.textContent && title.textContent.trim();
+      subjectEl.textContent = text || 'Email Subject';
+    } catch {
+      subjectEl.textContent = 'Email Subject';
+    }
+  }
+
+  // Re-apply zoom logic + chrome text after each render lands in the iframe.
+  iframe.addEventListener('load', () => {
+    applyPhoneZoom();
+    updateMailChrome();
+  });
 
   widthBtns.forEach((btn) => {
     btn.addEventListener('click', () => {

@@ -342,12 +342,190 @@ iframe {
   width: 400px;
 }
 
-.preview-phone .mockup-phone-display iframe {
+.preview-phone .mockup-phone-display {
+  /* Stack mail-chrome on top of the iframe container so the email content
+     starts below the dynamic island, matching real iOS Mail layout. */
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.preview-phone .phone-iframe-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview-phone .phone-iframe-container iframe {
   width: 100%;
   height: 100%;
   border: 0;
   display: block;
   background: #fff;
+}
+
+/* ---------- fake iOS Mail chrome ---------- */
+
+.mail-chrome {
+  flex: 0 0 auto;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  user-select: none;
+}
+
+.mc-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px 0;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mc-time { letter-spacing: -0.01em; }
+
+.mc-status-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mc-status-icons .mc-icon { fill: currentColor; }
+
+.mc-battery {
+  position: relative;
+  display: inline-block;
+  width: 22px;
+  height: 11px;
+  border: 1px solid currentColor;
+  border-radius: 2.5px;
+  margin-left: 1px;
+}
+.mc-battery::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 3px;
+  width: 2px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 0 1px 1px 0;
+}
+.mc-battery-level {
+  position: absolute;
+  inset: 1px;
+  background: currentColor;
+  border-radius: 1.5px;
+  width: calc(100% - 2px);
+}
+
+.mc-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  height: 32px;
+  color: #1a4cb3;
+}
+
+.mc-nav-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-nav-arrows {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  background: #f2f2f7;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.mc-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.mc-message-count { color: #8a8a8e; }
+
+.mc-summarize {
+  color: #1a4cb3;
+  font-weight: 500;
+  background: linear-gradient(90deg, #4aa3ff, #c084fc, #fb923c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mc-sender-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-top: 1px solid #e5e5e9;
+}
+
+.mc-sender-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #b59cf7;
+  flex-shrink: 0;
+}
+
+.mc-sender-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.mc-sender-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mc-sender-name {
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-sender-date {
+  color: #8a8a8e;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.mc-recipient { color: #8a8a8e; font-size: 11px; }
+.mc-recipient-name { color: #1a1a1a; }
+
+.mc-subject {
+  padding: 4px 16px 10px;
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 /* ---------- error overlay ---------- */

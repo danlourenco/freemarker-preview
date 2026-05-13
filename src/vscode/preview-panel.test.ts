@@ -4,9 +4,11 @@ import * as vscode from 'vscode'
 import {
   PreviewPanelManager,
   buildWebviewHtml,
+  type DiagnosticsSink,
   type PreviewPanelDeps,
 } from './preview-panel.ts'
 import { DaemonPool, type RenderDaemonLike } from './daemon-pool.ts'
+import { FreemarkerError } from '../core/errors.ts'
 import type { RegistryProjectEntry } from '../core/registry.ts'
 
 function fakeDaemon(html = '<p>ok</p>'): RenderDaemonLike & {
@@ -150,6 +152,57 @@ describe('PreviewPanelManager.preview', () => {
 
     expect(daemon.render).toHaveBeenCalledTimes(2)
     expect(daemon.render).toHaveBeenNthCalledWith(2, expect.objectContaining({ templateName: 'welcome.ftlh' }))
+  })
+
+  test('successful render clears diagnostics for the active URI', async () => {
+    const daemon = fakeDaemon('<p>x</p>')
+    const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
+    const diagnostics: DiagnosticsSink & {
+      surface: ReturnType<typeof vi.fn>
+      clear: ReturnType<typeof vi.fn>
+    } = { surface: vi.fn(), clear: vi.fn() }
+    const manager = new PreviewPanelManager(buildDeps({ pool, diagnostics }))
+
+    const uri = vscode.Uri.file('/tmp/t/a.ftlh')
+    await manager.preview(uri)
+
+    expect(diagnostics.clear).toHaveBeenCalledWith(uri)
+    expect(diagnostics.surface).not.toHaveBeenCalled()
+  })
+
+  test('FreemarkerError → diagnostics.surface, no showErrorMessage toast', async () => {
+    const err = new FreemarkerError({
+      type: 'undefined-variable',
+      message: 'oops',
+      line: 3,
+      column: 5,
+      templatePath: '/tmp/t/a.ftlh',
+    })
+    const daemon = { render: vi.fn().mockRejectedValue(err), shutdown: vi.fn(async () => {}) }
+    const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
+    const diagnostics = { surface: vi.fn(), clear: vi.fn() }
+    const manager = new PreviewPanelManager(buildDeps({ pool, diagnostics }))
+
+    const uri = vscode.Uri.file('/tmp/t/a.ftlh')
+    await manager.preview(uri)
+
+    expect(diagnostics.surface).toHaveBeenCalledWith(uri, err)
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled()
+  })
+
+  test('non-Freemarker exception still surfaces a showErrorMessage toast', async () => {
+    const daemon = {
+      render: vi.fn().mockRejectedValue(new Error('network down')),
+      shutdown: vi.fn(async () => {}),
+    }
+    const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
+    const diagnostics = { surface: vi.fn(), clear: vi.fn() }
+    const manager = new PreviewPanelManager(buildDeps({ pool, diagnostics }))
+
+    await manager.preview(vscode.Uri.file('/tmp/t/a.ftlh'))
+
+    expect(diagnostics.surface).not.toHaveBeenCalled()
+    expect(vscode.window.showErrorMessage).toHaveBeenCalled()
   })
 
   test('emits rendering → idle on a successful preview', async () => {

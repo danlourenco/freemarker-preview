@@ -3,10 +3,16 @@ import { basename, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { materializeFixture } from '../core/fixtures.ts'
 import { inlineCss as defaultInlineCss } from '../core/inline.ts'
+import { FreemarkerError } from '../core/errors.ts'
 import type { DaemonOptions } from '../core/daemon.ts'
 import type { RegistryProjectEntry } from '../core/registry.ts'
 import type { DaemonHandle, DaemonPool } from './daemon-pool.ts'
 import type { RenderState } from './status-bar.ts'
+
+export interface DiagnosticsSink {
+  surface(uri: vscode.Uri, error: FreemarkerError): void
+  clear(uri: vscode.Uri): void
+}
 
 export const PREVIEW_PANEL_VIEW_TYPE = 'freemarkerPreview'
 
@@ -26,6 +32,8 @@ export interface PreviewPanelDeps {
   fixtureDir?: string
   /** Forwarded into DaemonOptions when the pool is created lazily. */
   daemonOptionsExtra?: Omit<DaemonOptions, 'templatesRoot'>
+  /** Optional sink for FreeMarker errors — wires into VS Code diagnostics. */
+  diagnostics?: DiagnosticsSink
 }
 
 interface ActiveTemplate {
@@ -127,11 +135,14 @@ export function buildWebviewHtml(uris: WebviewAssetUris): string {
 
 function resolveAssetUris(panel: vscode.WebviewPanel, extensionUri: vscode.Uri): WebviewAssetUris {
   const webviewRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'vscode', 'webview')
+  const bust = Date.now()
+  const uri = (name: string) =>
+    `${panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, name))}?v=${bust}`
   return {
     cspSource: panel.webview.cspSource,
-    daisyuiCss: panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'daisyui.css')).toString(),
-    shellCss: panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'shell.css')).toString(),
-    shellJs: panel.webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'shell.js')).toString(),
+    daisyuiCss: uri('daisyui.css'),
+    shellCss: uri('shell.css'),
+    shellJs: uri('shell.js'),
   }
 }
 
@@ -143,6 +154,7 @@ export class PreviewPanelManager {
   private readonly inlineCss: (html: string) => string
   private readonly fixtureDir: string
   private readonly extensionUri: vscode.Uri | null
+  private readonly diagnostics: DiagnosticsSink | null
 
   private pool: DaemonPool | null = null
   private poolTemplatesRoot: string | null = null
@@ -163,6 +175,7 @@ export class PreviewPanelManager {
     this.inlineCss = deps.inlineCss ?? defaultInlineCss
     this.fixtureDir = deps.fixtureDir ?? tmpdir()
     this.extensionUri = deps.extensionUri ?? null
+    this.diagnostics = deps.diagnostics ?? null
     if (this.explicitPool) this.pool = this.explicitPool
   }
 
@@ -268,6 +281,7 @@ export class PreviewPanelManager {
     materializeFixture(this.active.fixture, fixturePath)
 
     this._onStateChange.fire('rendering')
+    const activeUri = this.active.uri
     try {
       const result = await this.daemonHandle.daemon.render({
         templateName: this.active.templateName,
@@ -275,10 +289,15 @@ export class PreviewPanelManager {
       })
       const html = this.inlineCss(result.html)
       await this.panel.webview.postMessage({ type: 'render', html })
+      this.diagnostics?.clear(activeUri)
       this._onStateChange.fire('idle')
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      vscode.window.showErrorMessage(`FreeMarker render failed: ${message}`)
+      if (err instanceof FreemarkerError && this.diagnostics) {
+        this.diagnostics.surface(activeUri, err)
+      } else {
+        const message = err instanceof Error ? err.message : String(err)
+        vscode.window.showErrorMessage(`FreeMarker render failed: ${message}`)
+      }
       this._onStateChange.fire('error')
     }
   }

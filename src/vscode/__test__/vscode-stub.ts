@@ -58,6 +58,52 @@ export class ThemeColor {
   constructor(public readonly id: string) {}
 }
 
+export class Position {
+  constructor(public readonly line: number, public readonly character: number) {}
+}
+
+export class Range {
+  constructor(public readonly start: Position, public readonly end: Position) {}
+}
+
+export const DiagnosticSeverity = {
+  Error: 0,
+  Warning: 1,
+  Information: 2,
+  Hint: 3,
+} as const
+
+export class Diagnostic {
+  source?: string
+  code?: string
+  constructor(
+    public range: Range,
+    public message: string,
+    public severity: number = DiagnosticSeverity.Error,
+  ) {}
+}
+
+function defaultDiagnosticCollection() {
+  const store = new Map<string, Diagnostic[]>()
+  return {
+    name: 'freemarker',
+    set: vi.fn((uri: { fsPath: string }, diags: Diagnostic[]) => {
+      store.set(uri.fsPath, diags)
+    }),
+    delete: vi.fn((uri: { fsPath: string }) => {
+      store.delete(uri.fsPath)
+    }),
+    get: vi.fn((uri: { fsPath: string }) => store.get(uri.fsPath) ?? []),
+    clear: vi.fn(() => store.clear()),
+    dispose: vi.fn(),
+    _store: store,
+  }
+}
+
+export const languages = {
+  createDiagnosticCollection: vi.fn(defaultDiagnosticCollection),
+}
+
 export class EventEmitter<T> {
   private listeners: ((value: T) => unknown)[] = []
   readonly event = (listener: (value: T) => unknown) => {

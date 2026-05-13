@@ -7,6 +7,7 @@ import { PreviewPanelManager } from './preview-panel.ts'
 import { registerSaveWatcher } from './save-watcher.ts'
 import { TemplateTreeProvider } from './tree-provider.ts'
 import { StatusBarManager } from './status-bar.ts'
+import { DiagnosticsManager } from './diagnostics.ts'
 import {
   computeRegistryPath,
   findProjectForCwd,
@@ -42,6 +43,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const javaScriptPath = path.join(__dirname, 'java', 'Render.java')
   output.appendLine(`[freemarker-preview] javaScriptPath: ${javaScriptPath}`)
 
+  const diagnostics = new DiagnosticsManager()
+  context.subscriptions.push(diagnostics)
+
   const manager = new PreviewPanelManager({
     poolFactory: (opts) => {
       output.appendLine(
@@ -58,6 +62,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     resolveProject,
     extensionUri: context.extensionUri,
+    diagnostics,
   })
 
   registerCommands(context, { manager })

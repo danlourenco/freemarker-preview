@@ -1,7 +1,7 @@
 {
   "name": "freemarker-preview",
   "displayName": "FreeMarker Preview",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "FreeMarker template previewer for JS developers in Spring Boot shops",
   "publisher": "danlourenco",
   "repository": {
@@ -85,6 +85,13 @@
         }
       ],
       "explorer/context": [
+        {
+          "when": "resourceExtname == .ftlh || resourceExtname == .ftl",
+          "command": "freemarker.preview",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
         {
           "when": "resourceExtname == .ftlh || resourceExtname == .ftl",
           "command": "freemarker.preview",

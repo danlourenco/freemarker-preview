@@ -10,7 +10,6 @@ import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import freemarker.template.TemplateExceptionHandler;
 import freemarker.template.TemplateNotFoundException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.BufferedReader;
@@ -21,55 +20,47 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.time.Instant;
-import java.util.Date;
+import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class Render {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public static void main(String[] args) throws Exception {
         if (args.length >= 1 && "--daemon".equals(args[0])) {
-            if (args.length < 2 || args.length > 3) {
-                System.err.println("usage: Render --daemon <templatesRoot> [missingMode]");
+            if (args.length != 2) {
+                System.err.println("usage: Render --daemon <templatesRoot>");
                 System.exit(2);
                 return;
             }
-            String mode = args.length == 3 ? args[2] : "error";
-            runDaemon(new File(args[1]), mode);
+            runDaemon(new File(args[1]));
             return;
         }
 
-        if (args.length < 3 || args.length > 4) {
-            System.err.println("usage: Render <templatesRoot> <templateName> <fixturePath> [missingMode]");
-            System.err.println("       Render --daemon <templatesRoot> [missingMode]");
+        if (args.length != 2) {
+            System.err.println("usage: Render <templatesRoot> <templateName>");
+            System.err.println("       Render --daemon <templatesRoot>");
             System.exit(2);
             return;
         }
 
         File templatesRoot = new File(args[0]);
         String templateName = args[1];
-        File fixtureFile = new File(args[2]);
-        String missingMode = args.length == 4 ? args[3] : "error";
         String templatePath = new File(templatesRoot, templateName).getAbsolutePath();
 
         try {
-            Configuration cfg = freshConfig(templatesRoot, missingMode);
-            String html = renderWithConfig(cfg, templateName, fixtureFile);
+            Configuration cfg = freshConfig(templatesRoot);
+            String html = renderWithConfig(cfg, templateName);
             emit(Map.of("ok", true, "html", html));
         } catch (Throwable t) {
             emit(errorBody(t, templatePath));
         }
     }
 
-    private static void runDaemon(File templatesRoot, String missingMode) throws Exception {
-        Configuration cfg = freshConfig(templatesRoot, missingMode);
+    private static void runDaemon(File templatesRoot) throws Exception {
+        Configuration cfg = freshConfig(templatesRoot);
 
         BufferedReader in = new BufferedReader(
             new InputStreamReader(System.in, StandardCharsets.UTF_8)
@@ -83,12 +74,10 @@ public class Render {
             if (line.isEmpty()) continue;
 
             String templateName = null;
-            String fixturePath = null;
             try {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> req = MAPPER.readValue(line, Map.class);
                 templateName = (String) req.get("templateName");
-                fixturePath = (String) req.get("fixturePath");
             } catch (Exception parseEx) {
                 emit(errorBody(parseEx, ""));
                 continue;
@@ -96,7 +85,7 @@ public class Render {
 
             String templatePath = new File(templatesRoot, templateName).getAbsolutePath();
             try {
-                String html = renderWithConfig(cfg, templateName, new File(fixturePath));
+                String html = renderWithConfig(cfg, templateName);
                 emit(Map.of("ok", true, "html", html));
             } catch (Throwable t) {
                 emit(errorBody(t, templatePath));
@@ -104,13 +93,13 @@ public class Render {
         }
     }
 
-    private static Configuration freshConfig(File templatesRoot, String missingMode) throws Exception {
+    private static Configuration freshConfig(File templatesRoot) throws Exception {
         Configuration cfg = new Configuration(Configuration.VERSION_2_3_34);
         cfg.setDirectoryForTemplateLoading(templatesRoot);
         cfg.setDefaultEncoding("UTF-8");
         cfg.setOutputEncoding("UTF-8");
         cfg.setLocale(Locale.US);
-        cfg.setTemplateExceptionHandler(handlerFor(missingMode));
+        cfg.setTemplateExceptionHandler(PLACEHOLDER_HANDLER);
         cfg.setRecognizeStandardFileExtensions(true);
         applyUserSettings(cfg);
         return cfg;
@@ -130,12 +119,6 @@ public class Render {
         for (Map.Entry<String, Object> e : settings.entrySet()) {
             cfg.setSetting(e.getKey(), String.valueOf(e.getValue()));
         }
-    }
-
-    private static TemplateExceptionHandler handlerFor(String mode) {
-        if ("placeholder".equals(mode)) return PLACEHOLDER_HANDLER;
-        if ("empty".equals(mode)) return EMPTY_HANDLER;
-        return TemplateExceptionHandler.RETHROW_HANDLER;
     }
 
     private static final String PLACEHOLDER_STYLE =
@@ -166,16 +149,6 @@ public class Render {
             }
         };
 
-    private static final TemplateExceptionHandler EMPTY_HANDLER =
-        new TemplateExceptionHandler() {
-            @Override
-            public void handleTemplateException(TemplateException te, Environment env, Writer out)
-                    throws TemplateException {
-                if (te instanceof InvalidReferenceException) return;
-                throw te;
-            }
-        };
-
     private static String escapeHtml(String s) {
         StringBuilder b = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {
@@ -192,17 +165,12 @@ public class Render {
         return b.toString();
     }
 
-    private static String renderWithConfig(Configuration cfg, String templateName, File fixtureFile)
+    private static String renderWithConfig(Configuration cfg, String templateName)
             throws IOException, TemplateException {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> raw = MAPPER.readValue(fixtureFile, Map.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) coerceIsoDates(raw);
-
         cfg.clearTemplateCache();
         Template template = cfg.getTemplate(templateName);
         StringWriter out = new StringWriter();
-        template.process(data, out);
+        template.process(Collections.emptyMap(), out);
         return out.toString();
     }
 
@@ -224,20 +192,13 @@ public class Render {
     }
 
     private static String classify(Throwable t) {
-        if (t instanceof InvalidReferenceException) return "undefined-variable";
         if (t instanceof TemplateNotFoundException) return "template-not-found";
         if (t instanceof ParseException) return "template-parse";
         if (t instanceof TemplateException) return "template-runtime";
-        if (t instanceof JsonProcessingException) return "fixture-parse";
-        if (t instanceof IOException) return "fixture-read";
         return "internal";
     }
 
     private static String extractMessage(Throwable t) {
-        if (t instanceof InvalidReferenceException ire) {
-            String blamed = ire.getBlamedExpressionString();
-            if (blamed != null) return blamed + " is undefined";
-        }
         if (t instanceof ParseException pe) {
             return pe.getEditorMessage();
         }
@@ -282,31 +243,5 @@ public class Render {
             System.err.println("internal: failed to write envelope: " + io.getMessage());
             System.exit(1);
         }
-    }
-
-    private static final Pattern ISO_8601 = Pattern.compile(
-        "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
-    );
-
-    @SuppressWarnings("unchecked")
-    private static Object coerceIsoDates(Object value) {
-        if (value instanceof String s && ISO_8601.matcher(s).matches()) {
-            try {
-                return Date.from(Instant.parse(s));
-            } catch (Exception ignored) {
-                return s;
-            }
-        }
-        if (value instanceof Map<?, ?> m) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> e : m.entrySet()) {
-                result.put((String) e.getKey(), coerceIsoDates(e.getValue()));
-            }
-            return result;
-        }
-        if (value instanceof List<?> l) {
-            return l.stream().map(Render::coerceIsoDates).collect(Collectors.toList());
-        }
-        return value;
     }
 }

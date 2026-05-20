@@ -4,8 +4,6 @@ import { dirname, basename, relative, resolve } from 'node:path'
 import { FreemarkerError, type StructuredError } from './errors.ts'
 import { debugLog } from './debug-log.ts'
 
-export type PreviewMissingAs = 'error' | 'placeholder' | 'empty'
-
 export interface RenderOptions {
   templatesRoot?: string
   /**
@@ -14,8 +12,6 @@ export interface RenderOptions {
    * extension shipping a different layout).
    */
   javaScriptPath?: string
-  /** What to do when a referenced variable is missing. Defaults to 'error'. */
-  previewMissingAs?: PreviewMissingAs
   /**
    * Forwarded to FreeMarker's Configuration.setSetting(key, value) on the
    * Java side. Use this to match production-side settings that differ from
@@ -35,21 +31,12 @@ const DEFAULT_JAVA_SCRIPT_PATH = resolve(
   'Render.java',
 )
 
-interface SuccessEnvelope {
-  ok: true
-  html: string
-}
-
-interface ErrorEnvelope {
-  ok: false
-  error: StructuredError
-}
-
+interface SuccessEnvelope { ok: true; html: string }
+interface ErrorEnvelope { ok: false; error: StructuredError }
 type Envelope = SuccessEnvelope | ErrorEnvelope
 
 export function render(
   templatePath: string,
-  fixturePath: string,
   opts: RenderOptions = {},
 ): Promise<RenderResult> {
   const templatesRoot = opts.templatesRoot
@@ -60,7 +47,6 @@ export function render(
     : basename(templatePath)
 
   const scriptPath = opts.javaScriptPath ?? DEFAULT_JAVA_SCRIPT_PATH
-  const missingMode = opts.previewMissingAs ?? 'error'
 
   const childEnv: NodeJS.ProcessEnv = { ...process.env }
   if (opts.freemarkerSettings && Object.keys(opts.freemarkerSettings).length > 0) {
@@ -70,7 +56,7 @@ export function render(
   return new Promise((resolveP, rejectP) => {
     const proc = spawn(
       'jbang',
-      [scriptPath, templatesRoot, templateName, fixturePath, missingMode],
+      [scriptPath, templatesRoot, templateName],
       { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv },
     )
 
@@ -79,12 +65,8 @@ export function render(
 
     proc.stdout.setEncoding('utf8')
     proc.stderr.setEncoding('utf8')
-    proc.stdout.on('data', (chunk) => {
-      stdout += chunk
-    })
-    proc.stderr.on('data', (chunk) => {
-      stderr += chunk
-    })
+    proc.stdout.on('data', (chunk) => { stdout += chunk })
+    proc.stderr.on('data', (chunk) => { stderr += chunk })
 
     proc.on('error', rejectP)
     proc.on('close', (code) => {

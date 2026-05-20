@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
 <body>
-<p>${user.name * 2}</p>
+<p>${1/0}</p>
 </body>
 </html>

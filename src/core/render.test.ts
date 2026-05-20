@@ -4,22 +4,15 @@ import { FreemarkerError } from './errors.ts'
 import { resolve } from 'node:path'
 
 describe('core.render', () => {
-  test('renders a template against fixture data', async () => {
+  test('renders a template against an empty data model', async () => {
     const templatePath = resolve('fixtures/hello.ftlh')
-    const fixturePath = resolve('fixtures/hello.json')
 
-    const { html } = await render(templatePath, fixturePath)
+    const { html } = await render(templatePath)
 
-    expect(html).toContain('Hello, World!')
-  })
-
-  test('auto-coerces ISO-8601 strings in fixture JSON to dates usable in templates', async () => {
-    const templatePath = resolve('fixtures/dated.ftlh')
-    const fixturePath = resolve('fixtures/dated.json')
-
-    const { html } = await render(templatePath, fixturePath)
-
-    expect(html).toContain('Created: 2025-12-25')
+    expect(html).toContain('Hello, ')
+    // hello.ftlh references ${recipient.name}; without data it renders as a placeholder.
+    expect(html).toMatch(/<span\s+class="fmp-missing"/)
+    expect(html).toContain('‹recipient›')
   })
 
   test('templatesRoot opt sets the FreeMarker loader root so absolute-to-root includes resolve', async () => {
@@ -27,32 +20,18 @@ describe('core.render', () => {
     const templatePath = resolve(
       'fixtures/include-test/templates/emails/main.ftlh',
     )
-    const fixturePath = resolve('fixtures/include-test/data.json')
 
-    const { html } = await render(templatePath, fixturePath, { templatesRoot })
+    const { html } = await render(templatePath, { templatesRoot })
 
     expect(html).toContain('Header content')
-    expect(html).toContain('Body content for Alice')
-  })
-
-  test('rejects with FreemarkerError(undefined-variable) for a typo reference', async () => {
-    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
-    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
-
-    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
-      name: 'FreemarkerError',
-      type: 'undefined-variable',
-      line: expect.any(Number),
-      column: expect.any(Number),
-      templatePath,
-    } satisfies Partial<FreemarkerError>)
+    // The body template references variables; renders as placeholder.
+    expect(html).toMatch(/<span\s+class="fmp-missing"/)
   })
 
   test('rejects with FreemarkerError(template-parse) for malformed template syntax', async () => {
     const templatePath = resolve('fixtures/errors/template-parse.ftlh')
-    const fixturePath = resolve('fixtures/hello.json')
 
-    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+    await expect(render(templatePath)).rejects.toMatchObject({
       name: 'FreemarkerError',
       type: 'template-parse',
       templatePath,
@@ -61,9 +40,8 @@ describe('core.render', () => {
 
   test('rejects with FreemarkerError(template-not-found) for a missing template', async () => {
     const templatePath = resolve('fixtures/does-not-exist.ftlh')
-    const fixturePath = resolve('fixtures/hello.json')
 
-    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+    await expect(render(templatePath)).rejects.toMatchObject({
       name: 'FreemarkerError',
       type: 'template-not-found',
     } satisfies Partial<FreemarkerError>)
@@ -71,83 +49,37 @@ describe('core.render', () => {
 
   test('rejects with FreemarkerError(template-runtime) for runtime template errors', async () => {
     const templatePath = resolve('fixtures/errors/template-runtime.ftlh')
-    const fixturePath = resolve('fixtures/errors/template-runtime.json')
 
-    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
+    await expect(render(templatePath)).rejects.toMatchObject({
       name: 'FreemarkerError',
       type: 'template-runtime',
       templatePath,
     } satisfies Partial<FreemarkerError>)
   })
 
-  test('rejects with FreemarkerError(fixture-read) for a missing fixture file', async () => {
-    const templatePath = resolve('fixtures/hello.ftlh')
-    const fixturePath = resolve('fixtures/does-not-exist.json')
-
-    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
-      name: 'FreemarkerError',
-      type: 'fixture-read',
-    } satisfies Partial<FreemarkerError>)
-  })
-
-  test('rejects with FreemarkerError(fixture-parse) for malformed fixture JSON', async () => {
-    const templatePath = resolve('fixtures/hello.ftlh')
-    const fixturePath = resolve('fixtures/errors/fixture-parse.json')
-
-    await expect(render(templatePath, fixturePath)).rejects.toMatchObject({
-      name: 'FreemarkerError',
-      type: 'fixture-parse',
-    } satisfies Partial<FreemarkerError>)
-  })
-
-  test('previewMissingAs: placeholder renders a fmp-missing span instead of throwing', async () => {
-    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
-    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
-
-    const { html } = await render(templatePath, fixturePath, {
-      previewMissingAs: 'placeholder',
-    })
-
-    expect(html).toMatch(/<span\s+class="fmp-missing"/)
-    expect(html).toContain('recipient.naem')
-    expect(html).toContain('‹')
-    expect(html).toContain('›')
-  })
-
-  test('previewMissingAs: empty renders an empty string at the missing reference site', async () => {
-    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
-    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
-
-    const { html } = await render(templatePath, fixturePath, {
-      previewMissingAs: 'empty',
-    })
-
-    expect(html).toContain('Hello, !')
-    expect(html).not.toContain('fmp-missing')
-  })
-
   test('freemarkerSettings forwards Configuration.setSetting() values to the Java side', async () => {
-    const templatePath = resolve('fixtures/numbers.ftlh')
-    const fixturePath = resolve('fixtures/numbers.json')
+    // Uses fixtures/assigned-number.ftlh — assigns a numeric literal inside
+    // the template via <#assign>, so output is affected by number_format
+    // even without any fixture data.
+    const templatePath = resolve('fixtures/assigned-number.ftlh')
 
-    // Default (en_US) produces three decimals: 1,234.568
-    const { html: defaultOut } = await render(templatePath, fixturePath)
-    // Custom: integer-only, no decimals: 1235 (rounded)
-    const { html: customOut } = await render(templatePath, fixturePath, {
+    const { html: defaultOut } = await render(templatePath)
+    const { html: customOut } = await render(templatePath, {
       freemarkerSettings: { number_format: '0' },
     })
 
-    expect(defaultOut).toContain('1,234.568')
-    expect(customOut).toContain('Pi: 1235')
-    expect(customOut).not.toContain('1,234')
+    // Default en_US locale with number_format="number" renders 1.234567 to exactly "1.235".
+    // number_format='0' formats it as an integer.
+    expect(defaultOut).toContain('Pi: 1.235')
+    expect(customOut).toContain('Pi: 1')
+    expect(customOut).not.toMatch(/1[.,]\d{2,}/)
   })
 
   test('rejects with FreemarkerError(internal) when jbang fails to produce a parseable envelope', async () => {
     const templatePath = resolve('fixtures/hello.ftlh')
-    const fixturePath = resolve('fixtures/hello.json')
 
     await expect(
-      render(templatePath, fixturePath, {
+      render(templatePath, {
         javaScriptPath: '/nonexistent/Render.java',
       }),
     ).rejects.toMatchObject({

@@ -15,53 +15,39 @@ describe('RenderDaemon', () => {
   test('roundtrips a single render request and returns html', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 
-    const { html } = await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
+    const { html } = await daemon.render({ templateName: 'hello.ftlh' })
 
-    expect(html).toContain('Hello, World!')
+    expect(html).toContain('Hello, ')
+    expect(html).toMatch(/<span\s+class="fmp-missing"/)
   })
 
   test('handles 100 sequential renders without leaking or hanging', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 
     for (let i = 0; i < 100; i++) {
-      const { html } = await daemon.render({
-        templateName: 'hello.ftlh',
-        fixturePath: resolve('fixtures/hello.json'),
-      })
-      expect(html).toContain('Hello, World!')
+      const { html } = await daemon.render({ templateName: 'hello.ftlh' })
+      expect(html).toContain('Hello, ')
     }
   }, 60_000)
 
-  test('per-render errors arrive as FreemarkerError envelopes (stderr stays empty)', async () => {
+  test('per-render errors arrive as FreemarkerError envelopes', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 
     await expect(
-      daemon.render({
-        templateName: 'errors/undefined-variable.ftlh',
-        fixturePath: resolve('fixtures/errors/undefined-variable.json'),
-      }),
+      daemon.render({ templateName: 'errors/template-parse.ftlh' }),
     ).rejects.toMatchObject({
       name: 'FreemarkerError',
-      type: 'undefined-variable',
+      type: 'template-parse',
     })
 
-    const { html } = await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
-    expect(html).toContain('Hello, World!')
+    const { html } = await daemon.render({ templateName: 'hello.ftlh' })
+    expect(html).toContain('Hello, ')
   })
 
   test('an external kill triggers a silent respawn and the next render succeeds', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 
-    await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
+    await daemon.render({ templateName: 'hello.ftlh' })
 
     const pid1 = daemon.pid!
     expect(pid1).toBeTypeOf('number')
@@ -70,11 +56,8 @@ describe('RenderDaemon', () => {
     process.kill(pid1, 'SIGKILL')
     await closed
 
-    const { html } = await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
-    expect(html).toContain('Hello, World!')
+    const { html } = await daemon.render({ templateName: 'hello.ftlh' })
+    expect(html).toContain('Hello, ')
 
     const pid2 = daemon.pid!
     expect(pid2).not.toBe(pid1)
@@ -83,57 +66,30 @@ describe('RenderDaemon', () => {
   test('two consecutive crashes surface a daemon-crash error', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 
-    await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
+    await daemon.render({ templateName: 'hello.ftlh' })
 
     let closed = daemon.waitForClose()
     process.kill(daemon.pid!, 'SIGKILL')
     await closed
 
-    await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
+    await daemon.render({ templateName: 'hello.ftlh' })
 
     closed = daemon.waitForClose()
     process.kill(daemon.pid!, 'SIGKILL')
     await closed
 
     await expect(
-      daemon.render({
-        templateName: 'hello.ftlh',
-        fixturePath: resolve('fixtures/hello.json'),
-      }),
+      daemon.render({ templateName: 'hello.ftlh' }),
     ).rejects.toMatchObject({
       name: 'FreemarkerError',
       type: 'daemon-crash',
     })
   })
 
-  test('previewMissingAs: placeholder is honored in daemon mode', async () => {
-    daemon = new RenderDaemon({
-      templatesRoot: fixturesRoot,
-      previewMissingAs: 'placeholder',
-    })
-
-    const { html } = await daemon.render({
-      templateName: 'errors/undefined-variable.ftlh',
-      fixturePath: resolve('fixtures/errors/undefined-variable.json'),
-    })
-
-    expect(html).toMatch(/<span\s+class="fmp-missing"/)
-    expect(html).toContain('recipient.naem')
-  })
-
   test('shutdown() ends the underlying process and rejects subsequent renders', async () => {
     daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
 
-    await daemon.render({
-      templateName: 'hello.ftlh',
-      fixturePath: resolve('fixtures/hello.json'),
-    })
+    await daemon.render({ templateName: 'hello.ftlh' })
 
     const pid = daemon.pid!
     await daemon.shutdown()
@@ -143,10 +99,7 @@ describe('RenderDaemon', () => {
     expect(() => process.kill(pid, 0)).toThrow()
 
     await expect(
-      daemon.render({
-        templateName: 'hello.ftlh',
-        fixturePath: resolve('fixtures/hello.json'),
-      }),
+      daemon.render({ templateName: 'hello.ftlh' }),
     ).rejects.toMatchObject({
       name: 'FreemarkerError',
       type: 'daemon-crash',

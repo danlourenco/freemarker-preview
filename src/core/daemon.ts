@@ -3,12 +3,11 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { FreemarkerError, type StructuredError } from './errors.ts'
 import { debugLog } from './debug-log.ts'
-import type { PreviewMissingAs, RenderResult } from './render.ts'
+import type { RenderResult } from './render.ts'
 
 export interface DaemonOptions {
   templatesRoot: string
   javaScriptPath?: string
-  previewMissingAs?: PreviewMissingAs
   freemarkerSettings?: Record<string, string>
   /**
    * Optional sink for raw stderr from the JBang process. Used by the VS Code
@@ -21,7 +20,6 @@ export interface DaemonOptions {
 
 export interface DaemonRenderRequest {
   templateName: string
-  fixturePath: string
 }
 
 function defaultJavaScriptPath(): string {
@@ -36,7 +34,6 @@ interface ResponseEnvelope {
 
 interface Pending {
   templateName: string
-  fixturePath: string
   templatePath: string
   resolve: (r: RenderResult) => void
   reject: (e: Error) => void
@@ -47,7 +44,6 @@ const MAX_RESPAWNS = 1
 export class RenderDaemon {
   private readonly templatesRoot: string
   private readonly javaScriptPath: string
-  private readonly missingMode: PreviewMissingAs
   private readonly freemarkerSettings: Record<string, string>
   private readonly onStderr: ((chunk: string) => void) | undefined
 
@@ -63,7 +59,6 @@ export class RenderDaemon {
   constructor(opts: DaemonOptions) {
     this.templatesRoot = resolve(opts.templatesRoot)
     this.javaScriptPath = opts.javaScriptPath ?? defaultJavaScriptPath()
-    this.missingMode = opts.previewMissingAs ?? 'error'
     this.freemarkerSettings = opts.freemarkerSettings ?? {}
     this.onStderr = opts.onStderr
   }
@@ -85,7 +80,6 @@ export class RenderDaemon {
     return new Promise<RenderResult>((resolveP, rejectP) => {
       this.queue.push({
         templateName: req.templateName,
-        fixturePath: req.fixturePath,
         templatePath: resolve(this.templatesRoot, req.templateName),
         resolve: resolveP,
         reject: rejectP,
@@ -141,10 +135,7 @@ export class RenderDaemon {
     // adding one back is the right move only when the daemon actually accepts
     // N in-flight renders (a v2 concern when a VS Code extension opens
     // multiple webviews simultaneously).
-    const request = JSON.stringify({
-      templateName: next.templateName,
-      fixturePath: next.fixturePath,
-    })
+    const request = JSON.stringify({ templateName: next.templateName })
     proc.stdin.write(request + '\n')
   }
 
@@ -162,7 +153,6 @@ export class RenderDaemon {
         this.javaScriptPath,
         '--daemon',
         this.templatesRoot,
-        this.missingMode,
       ],
       { stdio: ['pipe', 'pipe', 'pipe'], env: childEnv },
     )

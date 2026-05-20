@@ -13,8 +13,6 @@ export interface DevConfig {
   open: boolean
 }
 
-export type PreviewMissingMode = 'error' | 'placeholder' | 'empty'
-
 export interface Config {
   templatesRoot: string | null
   /**
@@ -26,13 +24,6 @@ export interface Config {
   locale: string
   inlineCss: boolean
   inlineCssOptions: Record<string, unknown>
-  /**
-   * When unset, each command applies its own default: `render` defaults to
-   * `'error'` (production fidelity for one-shot output); `dev` defaults to
-   * `'placeholder'` (better live-edit UX — undefined vars render visibly
-   * instead of breaking the preview).
-   */
-  previewMissingAs?: PreviewMissingMode
   /**
    * Forwarded to FreeMarker Configuration.setSetting(key, value) on the Java
    * side. Use this to match production-side settings that differ from
@@ -63,7 +54,7 @@ export interface LoadConfigOptions {
 
 const CONFIG_FILENAME = '.freemarkerrc.json'
 
-const DEFAULTS: Omit<Config, 'configPath' | 'previewMissingAs' | 'projectRoot'> =
+const DEFAULTS: Omit<Config, 'configPath' | 'projectRoot'> =
   {
     templatesRoot: null,
     fixture: null,
@@ -123,7 +114,6 @@ function fromRegistryEntry(
     locale: entry.locale ?? DEFAULTS.locale,
     inlineCss: entry.inlineCss ?? DEFAULTS.inlineCss,
     inlineCssOptions: entry.inlineCssOptions ?? DEFAULTS.inlineCssOptions,
-    previewMissingAs: entry.previewMissingAs,
     freemarker: entry.freemarker ?? DEFAULTS.freemarker,
     dev: { ...DEFAULTS.dev, ...(entry.dev ?? {}) },
     configPath: null,

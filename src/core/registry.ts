@@ -17,7 +17,6 @@ export interface RegistryProjectEntry {
   locale?: string
   inlineCss?: boolean
   inlineCssOptions?: Record<string, unknown>
-  previewMissingAs?: 'error' | 'placeholder' | 'empty'
   freemarker?: Record<string, string>
   dev?: { port?: number; open?: boolean }
 }

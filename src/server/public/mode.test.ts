@@ -20,15 +20,6 @@ describe('modeConfig', () => {
     })
   })
 
-  test('Desktop: 600 1:1, no chrome', () => {
-    expect(modeConfig('desktop')).toEqual({
-      containerWidth: '600px',
-      iframeWidth: '100%',
-      scale: 1,
-      chrome: false,
-    })
-  })
-
   test('Full: 100% 1:1, no chrome', () => {
     expect(modeConfig('full')).toEqual({
       containerWidth: '100%',
@@ -52,8 +43,8 @@ describe('migrateUrlParams', () => {
   })
 
   test('passes through URLs that already have mode set', () => {
-    expect(migrateUrlParams('http://localhost:5173/?mode=desktop'))
-      .toBe('http://localhost:5173/?mode=desktop')
+    expect(migrateUrlParams('http://localhost:5173/?mode=full'))
+      .toBe('http://localhost:5173/?mode=full')
   })
 
   test('width=375 migrates to mode=gmail-mobile', () => {
@@ -61,9 +52,9 @@ describe('migrateUrlParams', () => {
       .toBe('http://localhost:5173/?mode=gmail-mobile')
   })
 
-  test('width=600 migrates to mode=desktop', () => {
+  test('width=600 migrates to mode=full', () => {
     expect(migrateUrlParams('http://localhost:5173/?width=600'))
-      .toBe('http://localhost:5173/?mode=desktop')
+      .toBe('http://localhost:5173/?mode=full')
   })
 
   test('width=full migrates to mode=full', () => {
@@ -77,13 +68,13 @@ describe('migrateUrlParams', () => {
   })
 
   test('drops stale width when mode is already present', () => {
-    expect(migrateUrlParams('http://localhost:5173/?width=375&mode=desktop'))
-      .toBe('http://localhost:5173/?mode=desktop')
+    expect(migrateUrlParams('http://localhost:5173/?width=375&mode=full'))
+      .toBe('http://localhost:5173/?mode=full')
   })
 
   test('preserves other query params during migration', () => {
     expect(migrateUrlParams('http://localhost:5173/?template=hello.ftlh&width=600'))
-      .toBe('http://localhost:5173/?template=hello.ftlh&mode=desktop')
+      .toBe('http://localhost:5173/?template=hello.ftlh&mode=full')
   })
 
   test('unknown width values pass through unchanged', () => {

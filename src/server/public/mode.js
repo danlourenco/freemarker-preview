@@ -1,7 +1,7 @@
 /**
  * Compute layout config for a preview mode.
  *
- * @param {string} mode - 'ios-mail' | 'gmail-mobile' | 'desktop' | 'full'.
+ * @param {string} mode - 'ios-mail' | 'gmail-mobile' | 'full'.
  *   Unknown or falsy values fall back to 'ios-mail'.
  * @returns {{ containerWidth: string, iframeWidth: string, scale: number, chrome: boolean }}
  *   containerWidth: CSS width applied to the preview container
@@ -15,8 +15,6 @@ export function modeConfig(mode) {
       return { containerWidth: '375px', iframeWidth: '980px', scale: 375 / 980, chrome: true };
     case 'gmail-mobile':
       return { containerWidth: '375px', iframeWidth: '100%', scale: 1, chrome: false };
-    case 'desktop':
-      return { containerWidth: '600px', iframeWidth: '100%', scale: 1, chrome: false };
     case 'full':
       return { containerWidth: '100%', iframeWidth: '100%', scale: 1, chrome: false };
     default:
@@ -42,8 +40,7 @@ export function migrateUrlParams(url) {
   const width = u.searchParams.get('width');
   if (!width) return u.toString();
   let mode;
-  if (width === '600') mode = 'desktop';
-  else if (width === 'full') mode = 'full';
+  if (width === '600' || width === 'full') mode = 'full';
   // Any numeric width (375 or arbitrary custom): treat as gmail-mobile
   else if (/^\d+$/.test(width)) mode = 'gmail-mobile';
   else return u.toString();

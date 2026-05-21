@@ -91,7 +91,7 @@ body {
   font-size: 11px;
 }
 
-.width-controls {
+.mode-controls {
   display: inline-flex;
   align-items: center;
   gap: 0;
@@ -101,7 +101,7 @@ body {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-.width-btn {
+.mode-btn {
   appearance: none;
   border: 0;
   background: transparent;
@@ -112,27 +112,14 @@ body {
   border-right: 1px solid var(--border);
 }
 
-.width-btn:last-of-type { border-right: 0; }
+.mode-btn:last-of-type { border-right: 0; }
 
-.width-btn:hover { background: var(--row-hover); }
+.mode-btn:hover { background: var(--row-hover); }
 
-.width-btn[aria-pressed="true"] {
+.mode-btn[aria-pressed="true"] {
   background: var(--pill-active-bg);
   color: var(--pill-active-fg);
 }
-
-.width-custom {
-  width: 64px;
-  border: 0;
-  border-left: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-  padding: 4px 8px;
-}
-
-.width-custom::-webkit-outer-spin-button,
-.width-custom::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .shell-status {
   display: inline-flex;
@@ -337,6 +324,14 @@ iframe {
   border: 0;
   display: block;
   background: #fff;
+}
+
+/* iOS Mail mode renders the iframe at 980px CSS width and scales it to fit
+   via transform: scale(0.382). Both container types need overflow clipping
+   so the scaled-down 980px iframe doesn't bleed outside its visual bounds. */
+.phone-iframe-container,
+.preview-plain {
+  overflow: hidden;
 }
 
 /* ---------- fake iOS Mail chrome ---------- */

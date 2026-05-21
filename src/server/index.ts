@@ -96,6 +96,9 @@ export class DevServer {
       if (pathname === '/shell.js') {
         return await this.serveFile(res, 'shell.js', 'application/javascript; charset=utf-8')
       }
+      if (pathname === '/mode.js') {
+        return await this.serveFile(res, 'mode.js', 'application/javascript; charset=utf-8')
+      }
       if (pathname === '/shell.css') {
         return await this.serveFile(res, 'shell.css', 'text/css; charset=utf-8')
       }

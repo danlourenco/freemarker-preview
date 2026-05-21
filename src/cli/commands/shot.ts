@@ -1,9 +1,7 @@
-import { basename, extname, join, resolve } from 'node:path'
-import { mkdtempSync, rmSync, writeFile, readFileSync, existsSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { basename, extname, resolve } from 'node:path'
+import { writeFile, readFileSync, existsSync } from 'node:fs'
 import { promisify } from 'node:util'
-import { render, type PreviewMissingAs } from '../../core/render.ts'
-import { materializeFixture } from '../../core/fixtures.ts'
+import { render } from '../../core/render.ts'
 import { loadConfig } from '../../core/config.ts'
 import { FreemarkerError } from '../../core/errors.ts'
 import { formatError } from '../../core/format-error.ts'
@@ -13,21 +11,18 @@ const writeFileP = promisify(writeFile)
 
 export interface ShotArgs {
   template: string
-  data?: string
   out?: string
   noInlineCss: boolean
 }
 
 export function parseShotArgs(argv: string[]): ShotArgs {
   let template: string | undefined
-  let data: string | undefined
   let out: string | undefined
   let noInlineCss = false
 
   let i = 0
   while (i < argv.length) {
     const arg = argv[i]
-    if (arg === '--data')    { data = argv[i + 1];    i += 2; continue }
     if (arg === '--out')     { out = argv[i + 1];     i += 2; continue }
     if (arg === '--no-inline-css') { noInlineCss = true; i += 1; continue }
     if (!template && arg && !arg.startsWith('--')) {
@@ -39,24 +34,19 @@ export function parseShotArgs(argv: string[]): ShotArgs {
   }
 
   if (!template) throw new Error('shot: missing <template> argument')
-  return { template, data, out, noInlineCss }
+  return { template, out, noInlineCss }
 }
 
 /**
- * Default output filename: <template-stem>[-<fixture-name>]-<timestamp>.png.
+ * Default output filename: <template-stem>-<timestamp>.png.
  * Timestamp is local-time ISO basic form (YYYYMMDDTHHmmss) — filesystem-safe
- * (no colons, lexicographically sortable). When the fixture is the
- * sibling-fallback (basename equals template stem), the fixture suffix is
- * omitted.
+ * (no colons, lexicographically sortable).
  */
 export function defaultOutputPath(
   templatePath: string,
-  fixturePath: string,
   now: Date = new Date(),
 ): string {
-  const tplStem = basename(templatePath, extname(templatePath))
-  const fixStem = basename(fixturePath, extname(fixturePath))
-  const stem = tplStem === fixStem ? tplStem : `${tplStem}-${fixStem}`
+  const stem = basename(templatePath, extname(templatePath))
   return `${stem}-${formatTimestamp(now)}.png`
 }
 
@@ -93,26 +83,13 @@ export async function runShot(argv: string[]): Promise<number> {
       ? cwdResolved
       : resolve(templatesRoot, args.template)
 
-  // --data wins (one-shot override). Otherwise materialize cfg.fixture
-  // (or {}) to a temp file. No legacy `<template>.json` sibling lookup.
-  let fixturePath: string
-  let tempFixtureDir: string | null = null
-  if (args.data) {
-    fixturePath = resolve(args.data)
-  } else {
-    tempFixtureDir = mkdtempSync(join(tmpdir(), 'fmp-shot-fixture-'))
-    fixturePath = materializeFixture(cfg.fixture, join(tempFixtureDir, 'fixture.json'))
-  }
-
-  const missingMode: PreviewMissingAs = cfg.previewMissingAs ?? 'error'
   const shouldInline = !args.noInlineCss && cfg.inlineCss
-  const outPath = resolve(args.out ?? defaultOutputPath(templatePath, fixturePath))
+  const outPath = resolve(args.out ?? defaultOutputPath(templatePath))
 
   let html: string
   try {
-    const result = await render(templatePath, fixturePath, {
+    const result = await render(templatePath, {
       templatesRoot,
-      previewMissingAs: missingMode,
       freemarkerSettings: cfg.freemarker,
     })
     html = shouldInline ? inlineCss(result.html, cfg.inlineCssOptions) : result.html
@@ -153,7 +130,5 @@ export async function runShot(argv: string[]): Promise<number> {
       process.stderr.write(`shot failed: ${(err as Error).message}\n`)
     }
     return 1
-  } finally {
-    if (tempFixtureDir) rmSync(tempFixtureDir, { recursive: true, force: true })
   }
 }

@@ -31,7 +31,7 @@ describe('debug log', () => {
   })
 
   test('a render failure logs the Java stack trace to the debug log', async () => {
-    const templatePath = resolve('fixtures/errors/template-parse.ftlh')
+    const templatePath = resolve('test-templates/errors/template-parse.ftlh')
 
     await expect(render(templatePath)).rejects.toThrow()
 

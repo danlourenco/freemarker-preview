@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 
 describe('core.render', () => {
   test('renders a template against an empty data model', async () => {
-    const templatePath = resolve('fixtures/hello.ftlh')
+    const templatePath = resolve('test-templates/hello.ftlh')
 
     const { html } = await render(templatePath)
 
@@ -16,9 +16,9 @@ describe('core.render', () => {
   })
 
   test('templatesRoot opt sets the FreeMarker loader root so absolute-to-root includes resolve', async () => {
-    const templatesRoot = resolve('fixtures/include-test/templates')
+    const templatesRoot = resolve('test-templates/include-test/templates')
     const templatePath = resolve(
-      'fixtures/include-test/templates/emails/main.ftlh',
+      'test-templates/include-test/templates/emails/main.ftlh',
     )
 
     const { html } = await render(templatePath, { templatesRoot })
@@ -29,7 +29,7 @@ describe('core.render', () => {
   })
 
   test('rejects with FreemarkerError(template-parse) for malformed template syntax', async () => {
-    const templatePath = resolve('fixtures/errors/template-parse.ftlh')
+    const templatePath = resolve('test-templates/errors/template-parse.ftlh')
 
     await expect(render(templatePath)).rejects.toMatchObject({
       name: 'FreemarkerError',
@@ -39,7 +39,7 @@ describe('core.render', () => {
   })
 
   test('rejects with FreemarkerError(template-not-found) for a missing template', async () => {
-    const templatePath = resolve('fixtures/does-not-exist.ftlh')
+    const templatePath = resolve('test-templates/does-not-exist.ftlh')
 
     await expect(render(templatePath)).rejects.toMatchObject({
       name: 'FreemarkerError',
@@ -48,7 +48,7 @@ describe('core.render', () => {
   })
 
   test('rejects with FreemarkerError(template-runtime) for runtime template errors', async () => {
-    const templatePath = resolve('fixtures/errors/template-runtime.ftlh')
+    const templatePath = resolve('test-templates/errors/template-runtime.ftlh')
 
     await expect(render(templatePath)).rejects.toMatchObject({
       name: 'FreemarkerError',
@@ -58,10 +58,10 @@ describe('core.render', () => {
   })
 
   test('freemarkerSettings forwards Configuration.setSetting() values to the Java side', async () => {
-    // Uses fixtures/assigned-number.ftlh — assigns a numeric literal inside
+    // Uses test-templates/assigned-number.ftlh — assigns a numeric literal inside
     // the template via <#assign>, so output is affected by number_format
     // even without any fixture data.
-    const templatePath = resolve('fixtures/assigned-number.ftlh')
+    const templatePath = resolve('test-templates/assigned-number.ftlh')
 
     const { html: defaultOut } = await render(templatePath)
     const { html: customOut } = await render(templatePath, {
@@ -76,7 +76,7 @@ describe('core.render', () => {
   })
 
   test('rejects with FreemarkerError(internal) when jbang fails to produce a parseable envelope', async () => {
-    const templatePath = resolve('fixtures/hello.ftlh')
+    const templatePath = resolve('test-templates/hello.ftlh')
 
     await expect(
       render(templatePath, {

@@ -9,11 +9,11 @@ afterEach(async () => {
   daemon = undefined
 })
 
-const fixturesRoot = resolve('fixtures')
+const templatesRoot = resolve('test-templates')
 
 describe('RenderDaemon', () => {
   test('roundtrips a single render request and returns html', async () => {
-    daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
+    daemon = new RenderDaemon({ templatesRoot: templatesRoot })
 
     const { html } = await daemon.render({ templateName: 'hello.ftlh' })
 
@@ -22,7 +22,7 @@ describe('RenderDaemon', () => {
   })
 
   test('handles 100 sequential renders without leaking or hanging', async () => {
-    daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
+    daemon = new RenderDaemon({ templatesRoot: templatesRoot })
 
     for (let i = 0; i < 100; i++) {
       const { html } = await daemon.render({ templateName: 'hello.ftlh' })
@@ -31,7 +31,7 @@ describe('RenderDaemon', () => {
   }, 60_000)
 
   test('per-render errors arrive as FreemarkerError envelopes', async () => {
-    daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
+    daemon = new RenderDaemon({ templatesRoot: templatesRoot })
 
     await expect(
       daemon.render({ templateName: 'errors/template-parse.ftlh' }),
@@ -45,7 +45,7 @@ describe('RenderDaemon', () => {
   })
 
   test('an external kill triggers a silent respawn and the next render succeeds', async () => {
-    daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
+    daemon = new RenderDaemon({ templatesRoot: templatesRoot })
 
     await daemon.render({ templateName: 'hello.ftlh' })
 
@@ -64,7 +64,7 @@ describe('RenderDaemon', () => {
   })
 
   test('two consecutive crashes surface a daemon-crash error', async () => {
-    daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
+    daemon = new RenderDaemon({ templatesRoot: templatesRoot })
 
     await daemon.render({ templateName: 'hello.ftlh' })
 
@@ -87,7 +87,7 @@ describe('RenderDaemon', () => {
   })
 
   test('shutdown() ends the underlying process and rejects subsequent renders', async () => {
-    daemon = new RenderDaemon({ templatesRoot: fixturesRoot })
+    daemon = new RenderDaemon({ templatesRoot: templatesRoot })
 
     await daemon.render({ templateName: 'hello.ftlh' })
 

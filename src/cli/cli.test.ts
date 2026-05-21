@@ -37,7 +37,7 @@ describe('cli', () => {
     // assigned-number.ftlh uses <#assign> so it needs no external data
     const { stdout, code } = await runCli([
       'render',
-      resolve('fixtures/assigned-number.ftlh'),
+      resolve('test-templates/assigned-number.ftlh'),
     ])
     expect(code).toBe(0)
     expect(stdout).toContain('Pi:')
@@ -49,7 +49,7 @@ describe('cli', () => {
     // spans rather than erroring, so the command exits 0.
     const { stdout, code } = await runCli([
       'render',
-      resolve('fixtures/hello.ftlh'),
+      resolve('test-templates/hello.ftlh'),
     ])
     expect(code).toBe(0)
     expect(stdout).toContain('fmp-missing')
@@ -58,7 +58,7 @@ describe('cli', () => {
   test('render with a parse-error template writes a pretty error with file:line:col + snippet to stderr', async () => {
     // template-parse.ftlh has an unclosed <#if> which is a real parse error
     // (not an undefined-variable — those render as placeholders now).
-    const tpl = resolve('fixtures/errors/template-parse.ftlh')
+    const tpl = resolve('test-templates/errors/template-parse.ftlh')
     const { stderr, code } = await runCli([
       'render',
       tpl,
@@ -73,7 +73,7 @@ describe('cli', () => {
 
   test('render --json emits the structured error envelope to stderr', async () => {
     // template-parse.ftlh has an unclosed <#if> — a hard parse error
-    const tpl = resolve('fixtures/errors/template-parse.ftlh')
+    const tpl = resolve('test-templates/errors/template-parse.ftlh')
     const { stderr, code } = await runCli([
       'render',
       tpl,
@@ -95,7 +95,7 @@ describe('cli', () => {
     // assigned-number.ftlh needs no external data
     const { stdout, code } = await runCli([
       'render',
-      resolve('fixtures/assigned-number.ftlh'),
+      resolve('test-templates/assigned-number.ftlh'),
       '--json',
     ])
     expect(code).toBe(0)
@@ -106,7 +106,7 @@ describe('cli', () => {
     // styled.ftlh uses <#assign name = "World"> so it needs no external data
     const { stdout, code } = await runCli([
       'render',
-      resolve('fixtures/styled.ftlh'),
+      resolve('test-templates/styled.ftlh'),
     ])
     expect(code).toBe(0)
     expect(stdout).toMatch(
@@ -119,7 +119,7 @@ describe('cli', () => {
   test('render --no-inline-css keeps the <style> block intact', async () => {
     const { stdout, code } = await runCli([
       'render',
-      resolve('fixtures/styled.ftlh'),
+      resolve('test-templates/styled.ftlh'),
       '--no-inline-css',
     ])
     expect(code).toBe(0)

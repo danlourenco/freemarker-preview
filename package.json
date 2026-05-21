@@ -1,7 +1,7 @@
 {
   "name": "freemarker-preview",
   "displayName": "FreeMarker Preview",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "FreeMarker template previewer for JS developers in Spring Boot shops",
   "publisher": "danlourenco",
   "repository": {
@@ -27,15 +27,33 @@
   },
   "changelog": {
     "types": {
-      "feat": { "title": "Features" },
-      "fix": { "title": "Bug Fixes" },
-      "refactor": { "title": "Refactors" },
-      "perf": { "title": "Performance" },
-      "chore": { "title": "Chores" },
-      "docs": { "title": "Docs" },
-      "test": { "title": "Tests" },
-      "build": { "title": "Build" },
-      "style": { "title": "Style" }
+      "feat": {
+        "title": "Features"
+      },
+      "fix": {
+        "title": "Bug Fixes"
+      },
+      "refactor": {
+        "title": "Refactors"
+      },
+      "perf": {
+        "title": "Performance"
+      },
+      "chore": {
+        "title": "Chores"
+      },
+      "docs": {
+        "title": "Docs"
+      },
+      "test": {
+        "title": "Tests"
+      },
+      "build": {
+        "title": "Build"
+      },
+      "style": {
+        "title": "Style"
+      }
     }
   },
   "engines": {

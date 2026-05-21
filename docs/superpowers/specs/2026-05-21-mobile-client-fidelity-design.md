@@ -41,7 +41,7 @@ Mutually exclusive. Selected button uses the existing `aria-pressed="true"` patt
 | **Desktop** | 600px | 1:1 | no chrome |
 | **Full** | 100% of container | 1:1 | no chrome |
 
-**Why 980px for iOS Mail:** Apple's own documentation specifies 980px as Safari iOS's default viewport when no viewport meta tag is set ([Configuring the Viewport](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/UsingtheViewport/UsingtheViewport.html)). Apple Mail uses WebKit and inherits this default — the introduction of `<meta name="x-apple-disable-message-reformatting">` in iOS 10 ([HTeuMeuLeu](https://www.hteumeuleu.com/2016/what-you-need-to-know-about-apple-mail-in-ios-10/)) is itself evidence that auto-scaling is the default behavior to opt out of. The simulation always uses 980px regardless of viewport meta in the template, because that's the "worst case" rendering the user is most likely debugging — a non-responsive marketing email landing in iOS Mail.
+**Why 980px for iOS Mail:** Mobile browsers render pages at a 980px virtual viewport and shrink to fit when no viewport meta tag is set ([MDN: `<meta name="viewport">`](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport), reaffirmed in MDN's April 2026 revision). Apple Mail uses WebKit and inherits this default — the introduction of `<meta name="x-apple-disable-message-reformatting">` in iOS 10 ([HTeuMeuLeu](https://www.hteumeuleu.com/2016/what-you-need-to-know-about-apple-mail-in-ios-10/)) is itself evidence that auto-scaling is the default behavior to opt out of. The simulation always uses 980px regardless of viewport meta in the template, because that's the "worst case" rendering the user is most likely debugging — a non-responsive marketing email landing in iOS Mail.
 
 **Why chrome only in iOS Mail mode:** The chrome's visual styling (subject row, sender avatar, iOS status bar) is iOS Mail-specific. Showing it in Gmail mobile mode would be a small visual lie — Gmail's UI looks materially different. The chrome-on-375 binding from today is rewritten: chrome ties to mode, not width.
 
@@ -134,7 +134,8 @@ VS Code panel testing: the preview-panel.test.ts suite already covers shell rend
 
 ## Sources
 
-- [Configuring the Viewport — Apple Developer](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/UsingtheViewport/UsingtheViewport.html) — 980px default viewport for Safari iOS
+- [`<meta name="viewport">` — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport) — 980px virtual viewport for mobile browsers when no viewport meta is set; last modified Apr 22, 2026. **Primary citation.**
 - [What you need to know about Apple Mail in iOS 10 — HTeuMeuLeu](https://www.hteumeuleu.com/2016/what-you-need-to-know-about-apple-mail-in-ios-10/) — `x-apple-disable-message-reformatting` introduction, auto-scaling default behavior
 - [Apple Mail in iOS 10 incorrectly scales email — hteumeuleu/email-bugs#27](https://github.com/hteumeuleu/email-bugs/issues/27) — CSS bug edge cases
 - [Can I email — Apple Mail](https://www.caniemail.com/clients/apple-mail/) — general support matrix
+- [Configuring the Viewport — Apple Developer (archived)](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/UsingtheViewport/UsingtheViewport.html) — original Apple documentation for the 980px default. Archived (Apple hasn't migrated this doc to their modern docs system), but the behavior described still persists in WebKit per MDN.

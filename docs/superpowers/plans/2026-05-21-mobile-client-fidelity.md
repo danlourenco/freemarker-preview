@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the dev preview's width controls with a four-mode picker (iOS Mail, Gmail mobile, Desktop, Full) so users see what real mobile mail clients actually render, not just "iframe at 375px."
+> **Amendment 2026-05-21 (after Tasks 1+2 shipped):** Desktop mode was dropped from the picker via commit `480c952` after the user concluded Full subsumes it. The picker is now THREE modes — `iOS Mail`, `Gmail mobile`, `Full` — not four. Tasks 1+2 code blocks below still describe the four-mode shape they originally shipped; the patch commit reconciles the diff. Tasks 3, 4, 5 below have been updated to the three-mode shape.
+
+**Goal:** Replace the dev preview's width controls with a three-mode picker (iOS Mail, Gmail mobile, Full) so users see what real mobile mail clients actually render, not just "iframe at 375px."
 
 **Architecture:** A pure-function module (`mode.js`) computes a config struct from the mode name (containerWidth, iframeWidth, scale, chrome). Both the web shell and the VS Code webview consume this module to drive their picker UI. iOS Mail mode renders the iframe at a 980px virtual viewport (per Apple's documented Safari iOS default) with a CSS transform-scale to fit the 375px container — simulating Apple Mail's auto-zoom on non-responsive emails.
 
@@ -22,7 +24,7 @@
 
 ### Modified files
 
-- `src/server/public/index.html` — replace 4 width buttons + custom-width `<input>` with 4 mode buttons; promote `<script src="/shell.js">` to `type="module"`.
+- `src/server/public/index.html` — replace 3 width buttons + custom-width `<input>` with 3 mode buttons; promote `<script src="/shell.js">` to `type="module"`. *(Originally shipped with 4 buttons in Task 2; Desktop was dropped in `480c952`.)*
 - `src/server/public/shell.js` — drop IIFE wrapper (convert to module), import from `./mode.js`, replace `applyWidth()` with `applyMode()`, drop the `widthCustom` handler, wire URL migrator at bootstrap.
 - `src/server/public/shell.css` — rename `.width-controls` → `.mode-controls` (or keep class, add new selectors), add iOS Mail mode container styling (`overflow: hidden` for the clip).
 - `src/vscode/webview/shell.js` — same logic changes as the server shell (but preserve the VS Code-specific `acquireVsCodeApi` / `setState` patterns).
@@ -624,7 +626,6 @@ with:
 <div class="mode-controls" role="group" aria-label="preview mode">
   <button type="button" class="mode-btn" data-mode="ios-mail" title="Apple Mail iOS — 980px virtual viewport, scaled to fit 375">iOS Mail</button>
   <button type="button" class="mode-btn" data-mode="gmail-mobile" title="Gmail mobile — 375px 1:1, responsive CSS fires">Gmail mobile</button>
-  <button type="button" class="mode-btn" data-mode="desktop" title="Desktop — 600px">Desktop</button>
   <button type="button" class="mode-btn" data-mode="full" title="Full container width">Full</button>
 </div>
 ```
@@ -699,7 +700,7 @@ grep -n "width-btn\|data-width\|width-custom" src/vscode/preview-panel.test.ts
 For each match, update to the new shape:
 - `width-btn` → `mode-btn`
 - `data-width="375"` → `data-mode="ios-mail"` (or whichever mode the test exercises)
-- `data-width="600"` → `data-mode="desktop"`
+- `data-width="600"` → `data-mode="full"` (Desktop mode was dropped; Full subsumes it)
 - `data-width="full"` → `data-mode="full"`
 - `width-custom` (any reference) → DELETE the assertion; the input no longer exists
 
@@ -730,7 +731,7 @@ git commit -m "$(cat <<'EOF'
 feat(vscode)!: replace width controls with mode picker in preview webview
 
 BREAKING CHANGE: the VS Code preview webview's header swaps width
-buttons for the iOS Mail / Gmail mobile / Desktop / Full picker
+buttons for the iOS Mail / Gmail mobile / Full picker
 established in the server shell. Includes the same iOS Mail
 980px-virtual-viewport scaling, and the phone chrome ties to mode
 rather than width.
@@ -777,8 +778,7 @@ The dev preview's header picker chooses how the iframe renders:
 | --- | --- |
 | **iOS Mail** (default) | 980px virtual viewport, scaled to fit 375px container; phone chrome on. Simulates Apple Mail's auto-zoom for non-responsive emails ([Safari iOS uses 980px by default](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/UsingtheViewport/UsingtheViewport.html)). |
 | **Gmail mobile** | 375px container, iframe 1:1. Responsive CSS in your template fires. Matches Gmail mobile with `<meta name="viewport" content="width=device-width">` set. |
-| **Desktop** | 600px container, 1:1. Standard email design width. |
-| **Full** | Iframe fills the container width. Useful for wide layouts. |
+| **Full** | Iframe fills the container width. Subsumes the old Desktop mode — emails with `width: 600px` or `max-width: 600px` cap themselves at 600 in any wider container. |
 
 State persists in the URL via `?mode=`. Legacy `?width=` bookmarks migrate silently to the equivalent mode on load.
 ```
@@ -808,10 +808,10 @@ git add README.md
 git commit -m "$(cat <<'EOF'
 docs: document mobile-client fidelity modes
 
-Adds a Mobile-client modes section to README describing the four-mode
-picker (iOS Mail, Gmail mobile, Desktop, Full), each mode's rendering
-behavior, and the legacy ?width= URL migration. Removes references to
-the dropped custom-width input.
+Adds a Mobile-client modes section to README describing the three-mode
+picker (iOS Mail, Gmail mobile, Full), each mode's rendering behavior,
+and the legacy ?width= URL migration. Removes references to the dropped
+custom-width input.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -879,7 +879,7 @@ Verify with `gh release view v0.2.0`.
 - [ ] **Step 5.6: Close issue #44**
 
 ```bash
-gh issue close 44 --reason completed --comment "Shipped in v0.2.0 — see CHANGELOG. Four-mode picker (iOS Mail / Gmail mobile / Desktop / Full) replaces the width controls in both the web shell and the VS Code preview panel. iOS Mail mode simulates Apple Mail's documented auto-zoom by rendering at a 980px virtual viewport and scale-transforming to fit the 375px container."
+gh issue close 44 --reason completed --comment "Shipped in v0.2.0 — see CHANGELOG. Three-mode picker (iOS Mail / Gmail mobile / Full) replaces the width controls in both the web shell and the VS Code preview panel. iOS Mail mode simulates Apple Mail's documented auto-zoom by rendering at a 980px virtual viewport and scale-transforming to fit the 375px container."
 ```
 
 ---
@@ -894,4 +894,4 @@ After Task 5:
 - [ ] CHANGELOG.md has a populated v0.2.0 section
 - [ ] GitHub release v0.2.0 exists and is the Latest release
 - [ ] Issue #44 is closed
-- [ ] Manual smoke test: load the dev server, cycle through all four modes, verify each visually matches its description. Test with a known non-responsive template (e.g., one of the `test-templates/*.ftlh` files that doesn't include `<meta name="viewport">`).
+- [ ] Manual smoke test: load the dev server, cycle through all three modes, verify each visually matches its description. Test with `test-templates/email-demo.ftlh` (non-responsive 600px design — shows iOS Mail's auto-zoom + gutter) and `test-templates/email-demo-responsive.ftlh` (viewport meta + responsive CSS — shows how Gmail mobile fills the 375 width when the template is mobile-aware).

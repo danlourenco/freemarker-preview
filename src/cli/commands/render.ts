@@ -1,77 +1,36 @@
-import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { render, type PreviewMissingAs } from '../../core/render.ts'
-import { materializeFixture } from '../../core/fixtures.ts'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { render } from '../../core/render.ts'
 import { loadConfig } from '../../core/config.ts'
 import { FreemarkerError } from '../../core/errors.ts'
 import { formatError } from '../../core/format-error.ts'
 import { inlineCss } from '../../core/inline.ts'
 
-const VALID_MISSING_MODES: readonly PreviewMissingAs[] = [
-  'error',
-  'placeholder',
-  'empty',
-]
-
-function parseMissingFlag(value: string | undefined): PreviewMissingAs {
-  if (!VALID_MISSING_MODES.includes(value as PreviewMissingAs)) {
-    throw new Error(
-      `--missing must be one of ${VALID_MISSING_MODES.join(' | ')} (got ${value})`,
-    )
-  }
-  return value as PreviewMissingAs
-}
-
 export interface RenderArgs {
   template: string
-  data?: string
   json: boolean
   noInlineCss: boolean
-  missing?: PreviewMissingAs
 }
 
 export function parseRenderArgs(argv: string[]): RenderArgs {
   let template: string | undefined
-  let data: string | undefined
   let json = false
   let noInlineCss = false
-  let missing: PreviewMissingAs | undefined
 
   let i = 0
   while (i < argv.length) {
     const arg = argv[i]
-    if (arg === '--data') {
-      data = argv[i + 1]
-      i += 2
-      continue
-    }
-    if (arg === '--json') {
-      json = true
-      i += 1
-      continue
-    }
-    if (arg === '--no-inline-css') {
-      noInlineCss = true
-      i += 1
-      continue
-    }
-    if (arg === '--missing') {
-      missing = parseMissingFlag(argv[i + 1])
-      i += 2
-      continue
-    }
+    if (arg === '--json') { json = true; i += 1; continue }
+    if (arg === '--no-inline-css') { noInlineCss = true; i += 1; continue }
     if (!template && arg && !arg.startsWith('--')) {
-      template = arg
-      i += 1
-      continue
+      template = arg; i += 1; continue
     }
     i += 1
   }
 
   if (!template) throw new Error('render: missing <template> argument')
 
-  return { template, data, json, noInlineCss, missing }
+  return { template, json, noInlineCss }
 }
 
 function emitFailure(err: unknown, json: boolean, templatePath?: string): void {
@@ -148,33 +107,11 @@ export async function runRender(argv: string[]): Promise<number> {
       ? cwdResolved
       : resolve(templatesRoot, args.template)
 
-  // --data wins (one-shot override). Otherwise materialize the inline
-  // fixture from the user registry to a temp file. No registry fixture →
-  // materialize `{}`; missing-variable mode decides whether that errors
-  // or renders with pills.
-  let fixturePath: string
-  let tempFixtureDir: string | null = null
-  if (args.data) {
-    fixturePath = resolve(args.data)
-  } else {
-    tempFixtureDir = mkdtempSync(join(tmpdir(), 'fmp-render-fixture-'))
-    fixturePath = materializeFixture(cfg.fixture, join(tempFixtureDir, 'fixture.json'))
-  }
-
   const shouldInline = !args.noInlineCss && cfg.inlineCss
-  const missingMode: PreviewMissingAs =
-    args.missing ?? cfg.previewMissingAs ?? 'error'
-
-  if (missingMode !== 'error') {
-    process.stderr.write(
-      `note: --missing=${missingMode} — preview diverges from production strict-mode behavior\n`,
-    )
-  }
 
   try {
-    const { html } = await render(templatePath, fixturePath, {
+    const { html } = await render(templatePath, {
       templatesRoot,
-      previewMissingAs: missingMode,
       freemarkerSettings: cfg.freemarker,
     })
     const out = shouldInline ? inlineCss(html, cfg.inlineCssOptions) : html
@@ -183,7 +120,5 @@ export async function runRender(argv: string[]): Promise<number> {
   } catch (err) {
     emitFailure(err, args.json, templatePath)
     return 1
-  } finally {
-    if (tempFixtureDir) rmSync(tempFixtureDir, { recursive: true, force: true })
   }
 }

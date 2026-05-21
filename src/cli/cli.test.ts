@@ -33,63 +33,50 @@ describe('cli', () => {
     expect(stdout).toMatch(/render/)
   })
 
-  test('render <template> --data <data> writes html to stdout and exits 0', async () => {
+  test('render <template> writes html to stdout and exits 0', async () => {
+    // assigned-number.ftlh uses <#assign> so it needs no external data
+    const { stdout, code } = await runCli([
+      'render',
+      resolve('fixtures/assigned-number.ftlh'),
+    ])
+    expect(code).toBe(0)
+    expect(stdout).toContain('Pi:')
+  })
+
+  test('render renders against an empty data model — undefined variables become placeholder spans', async () => {
+    // hello.ftlh uses ${recipient.name} with no <#assign>. The new render
+    // API defaults to placeholder mode: missing variables render as inline
+    // spans rather than erroring, so the command exits 0.
     const { stdout, code } = await runCli([
       'render',
       resolve('fixtures/hello.ftlh'),
-      '--data',
-      resolve('fixtures/hello.json'),
     ])
     expect(code).toBe(0)
-    expect(stdout).toContain('Hello, World!')
+    expect(stdout).toContain('fmp-missing')
   })
 
-  test('render with a missing fixture exits non-zero', async () => {
-    const { code } = await runCli([
-      'render',
-      resolve('fixtures/hello.ftlh'),
-      '--data',
-      resolve('fixtures/does-not-exist.json'),
-    ])
-    expect(code).not.toBe(0)
-  })
-
-  test('render with no --data renders against the registry fixture (or {} if none configured)', async () => {
-    // No registry entry will match the cwd of these tests, so cfg.fixture
-    // is null → materializeFixture writes {}. With strict missing-variable
-    // mode, the template that uses ${name} fails — proving the render did
-    // happen with {} (not with the previously-removed sibling JSON lookup).
-    const { code, stderr } = await runCli([
-      'render',
-      resolve('fixtures/hello.ftlh'),
-    ])
-    expect(code).not.toBe(0)
-    expect(stderr).toMatch(/undefined-variable|name/i)
-  })
-
-  test('render with a typo template writes a pretty error with file:line:col + snippet to stderr', async () => {
-    const tpl = resolve('fixtures/errors/undefined-variable.ftlh')
+  test('render with a parse-error template writes a pretty error with file:line:col + snippet to stderr', async () => {
+    // template-parse.ftlh has an unclosed <#if> which is a real parse error
+    // (not an undefined-variable — those render as placeholders now).
+    const tpl = resolve('fixtures/errors/template-parse.ftlh')
     const { stderr, code } = await runCli([
       'render',
       tpl,
-      '--data',
-      resolve('fixtures/errors/undefined-variable.json'),
     ])
 
     expect(code).not.toBe(0)
-    expect(stderr).toContain('undefined-variable')
+    expect(stderr).toContain('template-parse')
     expect(stderr).toContain(`${tpl}:`)
-    expect(stderr).toMatch(/recipient\.naem/)
+    expect(stderr).toMatch(/unclosed #if/i)
     expect(stderr).toMatch(/^>\s*\d+ \|/m)
   })
 
   test('render --json emits the structured error envelope to stderr', async () => {
-    const tpl = resolve('fixtures/errors/undefined-variable.ftlh')
+    // template-parse.ftlh has an unclosed <#if> — a hard parse error
+    const tpl = resolve('fixtures/errors/template-parse.ftlh')
     const { stderr, code } = await runCli([
       'render',
       tpl,
-      '--data',
-      resolve('fixtures/errors/undefined-variable.json'),
       '--json',
     ])
 
@@ -99,29 +86,27 @@ describe('cli', () => {
       error: { type: string; templatePath: string; line?: number }
     }
     expect(parsed.ok).toBe(false)
-    expect(parsed.error.type).toBe('undefined-variable')
+    expect(parsed.error.type).toBe('template-parse')
     expect(parsed.error.templatePath).toBe(tpl)
     expect(parsed.error.line).toBeTypeOf('number')
   })
 
   test('render --json still writes HTML to stdout on success', async () => {
+    // assigned-number.ftlh needs no external data
     const { stdout, code } = await runCli([
       'render',
-      resolve('fixtures/hello.ftlh'),
-      '--data',
-      resolve('fixtures/hello.json'),
+      resolve('fixtures/assigned-number.ftlh'),
       '--json',
     ])
     expect(code).toBe(0)
-    expect(stdout).toContain('Hello, World!')
+    expect(stdout).toContain('Pi:')
   })
 
   test('render inlines CSS by default — child element gets style="..."', async () => {
+    // styled.ftlh uses <#assign name = "World"> so it needs no external data
     const { stdout, code } = await runCli([
       'render',
       resolve('fixtures/styled.ftlh'),
-      '--data',
-      resolve('fixtures/styled.json'),
     ])
     expect(code).toBe(0)
     expect(stdout).toMatch(
@@ -135,8 +120,6 @@ describe('cli', () => {
     const { stdout, code } = await runCli([
       'render',
       resolve('fixtures/styled.ftlh'),
-      '--data',
-      resolve('fixtures/styled.json'),
       '--no-inline-css',
     ])
     expect(code).toBe(0)

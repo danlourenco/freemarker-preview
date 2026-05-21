@@ -1,3 +1,4 @@
+<#assign name = "World" />
 <!DOCTYPE html>
 <html>
 <head>

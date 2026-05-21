@@ -18,7 +18,7 @@ describe('RenderDaemon', () => {
     const { html } = await daemon.render({ templateName: 'hello.ftlh' })
 
     expect(html).toContain('Hello, ')
-    expect(html).toMatch(/<span\s+class="fmp-missing"/)
+    expect(html).toMatch(/<span\s+class="fmp-variable"/)
   })
 
   test('handles 100 sequential renders without leaking or hanging', async () => {

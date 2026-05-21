@@ -11,7 +11,7 @@ describe('core.render', () => {
 
     expect(html).toContain('Hello, ')
     // hello.ftlh references ${recipient.name}; without data it renders as a placeholder.
-    expect(html).toMatch(/<span\s+class="fmp-missing"/)
+    expect(html).toMatch(/<span\s+class="fmp-variable"/)
     expect(html).toContain('‹recipient›')
   })
 
@@ -25,7 +25,7 @@ describe('core.render', () => {
 
     expect(html).toContain('Header content')
     // The body template references variables; renders as placeholder.
-    expect(html).toMatch(/<span\s+class="fmp-missing"/)
+    expect(html).toMatch(/<span\s+class="fmp-variable"/)
   })
 
   test('rejects with FreemarkerError(template-parse) for malformed template syntax', async () => {

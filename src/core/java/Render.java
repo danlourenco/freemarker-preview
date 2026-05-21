@@ -136,7 +136,7 @@ public class Render {
                     String safe = path != null ? escapeHtml(path) : "?";
                     try {
                         out.write(
-                            "<span class=\"fmp-missing\" style=\"" + PLACEHOLDER_STYLE + "\">"
+                            "<span class=\"fmp-variable\" style=\"" + PLACEHOLDER_STYLE + "\">"
                             + "‹" + safe + "›</span>"
                         );
                         out.flush();

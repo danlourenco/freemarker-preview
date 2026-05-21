@@ -34,7 +34,7 @@ Shot flags:
 
 Variable rendering:
   Templates render against an empty data model. Any variable reference appears
-  inline as a styled \`‹varName›\` placeholder (<span class="fmp-missing">),
+  inline as a styled \`‹varName›\` placeholder (<span class="fmp-variable">),
   so missing references never break the preview.
 `
 

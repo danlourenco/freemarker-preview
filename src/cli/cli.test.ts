@@ -52,7 +52,7 @@ describe('cli', () => {
       resolve('test-templates/hello.ftlh'),
     ])
     expect(code).toBe(0)
-    expect(stdout).toContain('fmp-missing')
+    expect(stdout).toContain('fmp-variable')
   })
 
   test('render with a parse-error template writes a pretty error with file:line:col + snippet to stderr', async () => {

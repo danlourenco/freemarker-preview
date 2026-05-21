@@ -51,9 +51,8 @@ Flat layout, no wrapper directory:
 
 ```
 src/
-  core/         # render(template, fixture) → { html, errors }
+  core/         # render(template) → { html, errors }
     render.ts
-    fixtures.ts
     config.ts
     java/
       Render.java
@@ -95,7 +94,7 @@ src/
 
 Request:
 ```json
-{ "id": "1", "templatePath": "/abs/welcome.ftlh", "fixturePath": "/abs/welcome.fixtures/new-user.json" }
+{ "id": "1", "templatePath": "/abs/welcome.ftlh" }
 ```
 
 Success response:
@@ -126,22 +125,12 @@ per-render output.
 
 ---
 
-## Data model & fixtures
+## Data model
 
-**Convention**: `welcome.ftlh` → `welcome.fixtures/<scenario>.json`. CLI picks
-named fixture or defaults to first alphabetically. Fallback: a single
-`welcome.json` next to the template if no `.fixtures/` directory exists.
-
-**Format**: JSON.
-
-**Date handling**: any string matching ISO 8601 is auto-converted to
-`java.util.Date` on the Java side. Other strings pass through.
-
-**Strict mode**: missing data raises errors (we want to catch typos, not mask
-them).
-
-**Optional `fixturesRoot`** in config for parallel fixture trees outside
-`templatesRoot`.
+Templates render against an empty data model (`{}`). Any variable reference
+produces an inline `<span class="fmp-variable">‹varName›</span>` styled
+placeholder rather than throwing. There is no fixture file, no `--data` flag,
+and no configuration knob.
 
 ---
 
@@ -153,7 +142,6 @@ zero-config in simple cases.
 ```json
 {
   "templatesRoot": "src/main/resources/templates",
-  "fixturesRoot": null,
   "locale": "en_US",
   "inlineCss": true,
   "inlineCssOptions": { "preserveMediaQueries": true },
@@ -171,10 +159,10 @@ zero-config in simple cases.
 ## CLI surface
 
 ```
-freemarker-preview init                           # scaffold .freemarkerrc.json + pre-warm JBang
+freemarker-preview init                           # register project in user-level registry + pre-warm JBang
 freemarker-preview dev [--port N] [--no-open]     # dev server
-freemarker-preview render <template> [--fixture name] [--out file.html]
-freemarker-preview shot <template> [--fixture name] [--width 600,375]
+freemarker-preview render <template> [--out file.html]
+freemarker-preview shot <template> [--width 600,375]
                                     [--dark] [--annotate] [--out file.png]
                                     [--format png|jpeg]
 ```
@@ -182,7 +170,7 @@ freemarker-preview shot <template> [--fixture name] [--width 600,375]
 - `render` defaults to stdout, applies CSS inlining matching dev.
 - `shot` defaults: 600px width, full page, PNG. `--width 600,375` produces
   `out.png` and `out@375.png`. `--annotate` draws a thin footer band with
-  template/fixture/width/timestamp for Jira evidence.
+  template/width/timestamp for Jira evidence.
 - All commands return non-zero exit on render failure.
 
 ---
@@ -190,12 +178,12 @@ freemarker-preview shot <template> [--fixture name] [--width 600,375]
 ## Dev server UX
 
 - One HTML shell page, vanilla JS (~200 lines), no framework, no build.
-- Layout: sidebar with template list; header with fixture picker, width toggle
+- Layout: sidebar with template list; header with width toggle
   (Mobile 375 / Desktop 600 / Full / custom), dark mode toggle, status dot;
   main area with an `<iframe srcdoc="...">` containing the rendered email.
 - The iframe boundary is critical: prevents shell CSS from leaking into the
   preview.
-- URL holds all state: `?template=welcome&fixture=new-user&width=375&dark=1`.
+- URL holds all state: `?template=welcome&width=375&dark=1`.
   Bookmarkable, deep-linkable.
 - Auto-opens browser on `dev` first start (suppress with `--no-open`).
 - Port collision: increment from configured port up to +5, fail with a clear
@@ -203,20 +191,18 @@ freemarker-preview shot <template> [--fixture name] [--width 600,375]
 
 ### Watch behavior (chokidar)
 
-- Watches `templatesRoot` (`*.ftlh`, `*.ftl`) and fixture dirs (`*.json`),
-  recursive.
+- Watches `templatesRoot` (`*.ftlh`, `*.ftl`), recursive.
 - 50ms debounce.
-- Currently-displayed template/fixture change → re-render + SSE reload event.
+- Currently-displayed template change → re-render + SSE reload event.
 - Other templates change → still re-render (cheap, prevents stale-state bugs).
-- Other fixtures change → update sidebar list, no re-render.
 - Config file change → print "config changed, restart required". No auto-restart.
 
 ### Reload mechanism
 
 - One SSE endpoint at `/events`.
 - On change, server pushes `{ "type": "reload" }`.
-- Client re-fetches `/render?template=...&fixture=...` and replaces iframe
-  `srcdoc`. No full page reload — fixture picker / scroll / dark mode preserved.
+- Client re-fetches `/render?template=...` and replaces iframe
+  `srcdoc`. No full page reload — scroll position and dark mode preserved.
 - In-flight render coalescing: if a new save arrives mid-render, drop the
   in-flight result and re-render with latest state.
 
@@ -234,8 +220,6 @@ The Java wrapper maps FreeMarker exceptions into clean types:
 | `InvalidReferenceException` | `undefined-variable` | Reference not in data model |
 | `TemplateNotFoundException` | `template-not-found` | Entry template or include missing |
 | `TemplateException` (other) | `template-runtime` | Runtime error |
-| IOException reading fixture | `fixture-read` | Fixture missing / unreadable |
-| JSON parse fail | `fixture-parse` | Fixture isn't valid JSON |
 | Anything else | `internal` | Bug in our wrapper |
 
 ### Per-surface rendering
@@ -281,18 +265,17 @@ inlines and we want preview parity). `--no-inline-css` flag overrides.
   (`%LOCALAPPDATA%\freemarker-preview\debug.log` on Windows).
 - Rotates at 10MB, keeps last 3.
 - Logs daemon lifecycle, render times, full Java stacktraces.
-- **Never** logs fixture data (could contain PII).
+- **Never** logs template data (could contain PII).
 
 ---
 
 ## Testing
 
 - **Tool**: Vitest.
-- **Scope**: unit tests on `core/render` and `core/fixtures`. ~5 sample
-  template+fixture pairs covering happy path, undefined-variable, parse error,
-  missing fixture, date handling, includes (one test even though current
-  templates don't use them — guards future use). Snapshot tests for happy-path
-  HTML output.
+- **Scope**: unit tests on `core/render`. Sample templates covering happy path,
+  undefined-variable (placeholder rendering), parse error, and includes (one
+  test even though current templates don't use them — guards future use).
+  Snapshot tests for happy-path HTML output.
 - **Skip in v1**: dev server / SSE / Playwright tests. High effort, brittle,
   low return.
 - **CI**: not in v1. Add a minimal GitHub Actions workflow when publishing or
@@ -307,7 +290,7 @@ v1 is done when you can:
 1. `freemarker-preview init` in your Spring Boot project's email template
    directory.
 2. `freemarker-preview dev` and edit a `.ftlh` template with live preview,
-   error overlay, fixture switcher, width toggle, dark mode toggle.
+   error overlay, width toggle, dark mode toggle.
 3. `freemarker-preview render foo.ftlh > foo.html` for one-shot output.
 4. `freemarker-preview shot foo.ftlh --width 600,375 --out foo.png` and attach
    to a Jira ticket.

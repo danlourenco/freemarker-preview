@@ -5,7 +5,7 @@ A FreeMarker (`.ftlh` / `.ftl`) template previewer for JS developers in Spring B
 - **Live-reloading dev server** with iframe preview, sidebar, width toggles, error overlay.
 - **One-shot `render`** to stdout for scripts and CI.
 - **PNG capture (`shot`)** for Jira evidence.
-- **Real Apache FreeMarker via JBang** — `${user.name?datetime}`, `<#include>`, `<#macro>`, strict-mode missing-data — all behave exactly like prod.
+- **Real Apache FreeMarker via JBang** — `${user.name?datetime}`, `<#include>`, `<#macro>` — all behave exactly like prod.
 
 ## Prerequisites
 
@@ -82,7 +82,7 @@ npx freemarker-preview init     # registers this project in your user-level conf
 npx freemarker-preview dev      # browser opens to live-reloading preview
 ```
 
-Edit any `.ftlh` template or fixture JSON; the iframe swaps in within ~100ms via SSE.
+Edit any `.ftlh` template; the iframe swaps in within ~100ms via SSE.
 
 ## Commands
 
@@ -114,14 +114,13 @@ Run `init` from anywhere inside your project — including a templates subdirect
 Starts a live-reloading HTTP server with an iframe preview, sidebar template list, width toggles, and a Vite-style error overlay.
 
 ```bash
-freemarker-preview dev [--port N] [--no-open] [--missing <mode>]
+freemarker-preview dev [--port N] [--no-open]
 ```
 
 | Flag | Default | Behavior |
 |---|---|---|
 | `--port N` | `5173` | Preferred port. Walks +5 if busy (probes across IP families to avoid silent shadow conflicts with e.g. an existing Vite server). |
 | `--no-open` | (browser opens) | Skip the auto browser launch. |
-| `--missing <mode>` | `placeholder` | `error` / `placeholder` / `empty`. See [Missing-variable modes](#missing-variable-modes). |
 
 URL state survives refresh and supports deep-linking:
 
@@ -135,22 +134,18 @@ One-shot render to stdout. The default error mode is **strict** — production f
 
 ```bash
 freemarker-preview render <template> \
-  [--data <fixture.json>] \
-  [--json] [--no-inline-css] [--missing <mode>]
+  [--json] [--no-inline-css]
 ```
 
 | Flag | Behavior |
 |---|---|
-| `--data <path>` | One-shot fixture override. Without it, uses the per-project fixture from your user registry (see [Fixture data](#fixture-data)). |
 | `--json` | On render failure, emit a structured JSON error envelope to stderr instead of the pretty colored output. |
 | `--no-inline-css` | Skip the post-render CSS-inlining pass. |
-| `--missing <mode>` | `error` (default) / `placeholder` / `empty`. |
 
 Exit code is `0` on success, non-zero on failure.
 
 ```bash
 freemarker-preview render welcome.ftlh > out.html
-freemarker-preview render welcome.ftlh --data /tmp/special.json
 freemarker-preview render welcome.ftlh --json 2> err.json
 ```
 
@@ -160,14 +155,12 @@ PNG screenshot of the rendered, css-inlined template via Playwright. Lazy-loads 
 
 ```bash
 freemarker-preview shot <template> \
-  [--data <fixture.json>] \
   [--out file.png] [--no-inline-css]
 ```
 
 | Flag | Default | Behavior |
 |---|---|---|
 | `--out <file.png>` | `<template>-<timestamp>.png` | Override output path. The timestamp keeps repeated shots from overwriting each other. |
-| `--data <path>` | (uses registry fixture) | One-shot fixture override. |
 | `--no-inline-css` | (off) | Skip the inline pass before capture. |
 
 Defaults: 600px viewport width, full-page capture, PNG, `deviceScaleFactor: 2` for retina.
@@ -193,7 +186,7 @@ Each command runs `loadConfig(cwd)`, which:
 2. Else walks up looking for `.freemarkerrc.json` (legacy behavior).
 3. Else uses defaults with `projectRoot = cwd`.
 
-CLI commands resolve relative paths (`templatesRoot`, `fixturesRoot`) against `cfg.projectRoot` — the registry key, the directory containing `.freemarkerrc.json`, or `cwd`.
+CLI commands resolve relative paths (`templatesRoot`) against `cfg.projectRoot` — the registry key, the directory containing `.freemarkerrc.json`, or `cwd`.
 
 ### User-level project registry
 
@@ -210,8 +203,7 @@ Written by `init`. Lives outside any project tree, keyed by absolute project roo
   "projects": {
     "/Users/dlo/Dev/agreement": {
       "templatesRoot": "src/main/resources/templates/email",
-      "freemarker": { "number_format": "#,##0.00" },
-      "previewMissingAs": "placeholder"
+      "freemarker": { "number_format": "#,##0.00" }
     },
     "/Users/dlo/Dev/another-app": {
       "templatesRoot": "src/main/resources/templates"
@@ -229,11 +221,9 @@ Drop this into your project root if you'd rather commit config to the repo. The 
 ```json
 {
   "templatesRoot": "src/main/resources/templates",
-  "fixturesRoot": null,
   "locale": "en_US",
   "inlineCss": true,
   "inlineCssOptions": { "preserveMediaQueries": true },
-  "previewMissingAs": "placeholder",
   "dev": { "port": 5173, "open": true }
 }
 ```
@@ -241,71 +231,18 @@ Drop this into your project root if you'd rather commit config to the repo. The 
 | Key | Default | Notes |
 |---|---|---|
 | `templatesRoot` | `cwd` | Used as FreeMarker's `TemplateLoader` directory. Resolved relative to `projectRoot`. |
-| `fixturesRoot` | `null` | Optional separate fixtures tree (watcher follows both). |
 | `locale` | `"en_US"` | FreeMarker `Configuration.setLocale`. |
 | `inlineCss` | `true` | Run `juice` post-render. |
 | `inlineCssOptions` | `{ preserveMediaQueries: true }` | Forwarded to `juice`. |
-| `previewMissingAs` | (per-command) | When unset, `render` defaults to `error`, `dev` defaults to `placeholder`. |
 | `freemarker` | `{}` | Forwarded to `Configuration.setSetting(key, value)` on the Java side (e.g. `number_format`, `date_format`). |
 | `dev.port` | `5173` | Walks +5 if busy. |
 | `dev.open` | `true` | Auto-open browser on `dev` start. |
 
-## Fixture data
+## Variable rendering
 
-Your preview fixture lives in your **user-level registry** — the same file as the rest of your project config. Nothing fixture-related ever lives in your project tree, so there's zero chance of accidentally committing test data alongside your templates.
+Templates render against an empty data model. Any variable reference appears inline as a styled `‹varName›` placeholder (`<span class="fmp-variable">`).
 
-Edit it by opening:
-
-| Platform | Path |
-|---|---|
-| macOS / Linux | `$XDG_CONFIG_HOME/freemarker-preview/projects.json` (default `~/.config/freemarker-preview/projects.json`) |
-| Windows | `%APPDATA%\freemarker-preview\projects.json` |
-
-…and adding a `fixture` object to your project's entry:
-
-```json
-{
-  "projects": {
-    "/Users/dlo/Dev/agreement": {
-      "templatesRoot": "src/main/resources/templates/email",
-      "fixture": {
-        "user": { "name": "Dan", "email": "dan@example.com" },
-        "order": { "id": "ORD-001", "total": 99.99 }
-      }
-    }
-  }
-}
-```
-
-Every template in your project renders against this single shared fixture. Most templates reference the same variables (`user`, `order`, etc.), so one shared object covers all of them. If a template references a variable not in your fixture, dev shows it as a red placeholder pill — a visible nudge to add it.
-
-`dev` re-reads the registry per render, so external edits to `projects.json` reflect on the next refresh without restarting.
-
-If no `fixture` key exists, templates render against `{}`. In `dev` (default missing-variable mode = `placeholder`), every reference shows as a pill. In `render` / `shot` (default = `error`), the first undefined reference throws.
-
-### One-shot overrides
-
-For `render` and `shot`, pass `--data <path>` to use a specific JSON file for a single invocation. Useful for CI or scripting:
-
-```bash
-freemarker-preview render welcome.ftlh --data /tmp/staging-data.json > out.html
-```
-
-ISO-8601 strings in fixture JSON auto-coerce to `java.util.Date` on the Java side, so `${createdAt?datetime}` and `${createdAt?string("yyyy-MM-dd")}` work without special setup.
-
-### Migrating from per-template fixtures
-
-Older versions encouraged co-locating `<template>.fixtures/` directories or sibling `<template>.json` files next to each template. Those conventions have been **removed**. If you have leftover fixture files in your templates directory, just delete them — they're no longer consulted.
-
-## Missing-variable modes
-
-| Mode | Behavior | When to use |
-|---|---|---|
-| `error` | FreeMarker strict-mode. Undefined references throw and `render` exits non-zero / dev shows the error overlay. | Default for `render`. CI / one-shot output going to email pipelines where typos must be loud. |
-| `placeholder` | Renders `<span class="fmp-missing">‹recipient.naem›</span>` at the reference site. The preview never breaks. | Default for `dev`. The fastest live-edit loop. |
-| `empty` | Replaces undefined references with empty strings. | Quietest mode. Useful for screenshots of partially-filled fixtures. |
-
-Production templates always behave as if `previewMissingAs = "error"` — the soft modes are *preview-only*. The CLI emits a one-line stderr note on `render` when running in a non-error mode so the divergence from prod fidelity is obvious.
+This is intentional. The point is to let you review layout and copy without setting up data — the styling makes placeholders visually distinct from real text, so you can still spot rendering issues. If you want to customize the placeholder appearance (e.g., to match your own dev workflow), the `fmp-variable` class is the hook.
 
 ## Troubleshooting
 
@@ -346,7 +283,7 @@ When a render fails, the full Java stack trace lands in a rotating debug log (10
 | Windows | `%LOCALAPPDATA%\freemarker-preview\debug.log` |
 | Test/CI override | `FREEMARKER_PREVIEW_DEBUG_LOG=/path/to/log` |
 
-Fixture data is never written to the log (PII protection).
+Template data is never written to the log (PII protection).
 
 ## Cross-platform notes
 
@@ -356,12 +293,15 @@ Fixture data is never written to the log (PII protection).
 
 ## Out of scope (v1)
 
-- VS Code extension (the architecture supports it; building it is v2 — `core/render`, `core/daemon`, and `core/shot` are all the seams a VS Code webview would consume).
 - Email-client emulation (Gmail / Outlook / Apple Mail rendering quirks).
 - Multi-template-root config.
 - Click-to-open-in-editor from the error overlay.
 - "Available variables in scope" hint on undefined-variable errors.
 - CI workflow.
+
+## Commits & releases
+
+Every commit follows [Conventional Commits](https://www.conventionalcommits.org/). Releases are cut with `npm run release`, which uses [changelogen](https://github.com/unjs/changelogen) to bump the version, regenerate `CHANGELOG.md` from the commits since the last tag, and create a git tag.
 
 ## License
 

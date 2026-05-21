@@ -15,12 +15,6 @@ export interface DevConfig {
 
 export interface Config {
   templatesRoot: string | null
-  /**
-   * Inline fixture data from the user-level registry. The same object is
-   * used for every template; `dev` materializes it to a temp file per
-   * render. `null` when not configured — renders fall back to `{}`.
-   */
-  fixture: Record<string, unknown> | null
   locale: string
   inlineCss: boolean
   inlineCssOptions: Record<string, unknown>
@@ -38,8 +32,7 @@ export interface Config {
    */
   configPath: string | null
   /**
-   * Anchor for resolving relative paths in the config (templatesRoot,
-   * fixturesRoot). One of:
+   * Anchor for resolving relative paths in the config (templatesRoot). One of:
    *   - registry match: the registered project key
    *   - `.freemarkerrc.json`: dirname of the config file
    *   - defaults: the cwd loadConfig was called with
@@ -57,7 +50,6 @@ const CONFIG_FILENAME = '.freemarkerrc.json'
 const DEFAULTS: Omit<Config, 'configPath' | 'projectRoot'> =
   {
     templatesRoot: null,
-    fixture: null,
     locale: 'en_US',
     inlineCss: true,
     inlineCssOptions: { preserveMediaQueries: true },
@@ -110,7 +102,6 @@ function fromRegistryEntry(
   return {
     ...DEFAULTS,
     templatesRoot: entry.templatesRoot ?? DEFAULTS.templatesRoot,
-    fixture: entry.fixture ?? DEFAULTS.fixture,
     locale: entry.locale ?? DEFAULTS.locale,
     inlineCss: entry.inlineCss ?? DEFAULTS.inlineCss,
     inlineCssOptions: entry.inlineCssOptions ?? DEFAULTS.inlineCssOptions,

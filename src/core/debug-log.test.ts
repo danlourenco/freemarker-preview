@@ -1,8 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { render } from './render.ts'
 import { debugLog, rotateIfNeeded, MAX_LOG_BYTES, computeDebugLogPath } from './debug-log.ts'
 
@@ -32,28 +31,13 @@ describe('debug log', () => {
   })
 
   test('a render failure logs the Java stack trace to the debug log', async () => {
-    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
-    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
+    const templatePath = resolve('fixtures/errors/template-parse.ftlh')
 
-    await expect(render(templatePath, fixturePath)).rejects.toThrow()
+    await expect(render(templatePath)).rejects.toThrow()
 
     const content = readFileSync(logPath, 'utf8')
     expect(content).toMatch(/freemarker\./)
     expect(content).toContain('Render')
-  })
-
-  test('fixture data does not appear in the debug log when a render fails', async () => {
-    const templatePath = resolve('fixtures/errors/undefined-variable.ftlh')
-    const fixturePath = resolve('fixtures/errors/undefined-variable.json')
-
-    const fixtureContent = readFileSync(fixturePath, 'utf8')
-    expect(fixtureContent).toContain('"World"')
-
-    await expect(render(templatePath, fixturePath)).rejects.toThrow()
-
-    const content = existsSync(logPath) ? readFileSync(logPath, 'utf8') : ''
-    expect(content).not.toContain('"World"')
-    expect(content).not.toContain('"name": "World"')
   })
 
   describe('computeDebugLogPath (cross-platform resolution)', () => {

@@ -82,8 +82,6 @@ describe('formatError', () => {
     'undefined-variable',
     'template-not-found',
     'template-runtime',
-    'fixture-read',
-    'fixture-parse',
     'internal',
   ] as const)('formats %s errors with the type label visible', (type) => {
     const out = formatError(err({ type, message: 'x' }), undefined, {

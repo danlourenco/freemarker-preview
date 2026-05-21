@@ -65,8 +65,8 @@ describe('DiagnosticsManager', () => {
     const mgr = new DiagnosticsManager()
     const uri = vscode.Uri.file('/tmp/t/welcome.ftlh')
     const error = new FreemarkerError({
-      type: 'fixture-parse',
-      message: 'invalid JSON',
+      type: 'internal',
+      message: 'something went wrong',
       templatePath: '/tmp/t/welcome.ftlh',
     })
 

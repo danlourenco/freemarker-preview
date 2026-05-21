@@ -3,8 +3,6 @@ export type FreemarkerErrorType =
   | 'undefined-variable'
   | 'template-not-found'
   | 'template-runtime'
-  | 'fixture-read'
-  | 'fixture-parse'
   | 'internal'
   | 'daemon-crash'
 

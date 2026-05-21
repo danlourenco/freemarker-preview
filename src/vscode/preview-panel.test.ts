@@ -1,5 +1,4 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { tmpdir } from 'node:os'
 import * as vscode from 'vscode'
 import {
   PreviewPanelManager,
@@ -28,7 +27,6 @@ function buildDeps(overrides: Partial<PreviewPanelDeps> = {}): PreviewPanelDeps 
     pool: new DaemonPool({ templatesRoot: project.templatesRoot }, () => daemon),
     resolveProject: vi.fn(() => project),
     inlineCss: (html: string) => `INLINED:${html}`,
-    fixtureDir: tmpdir(),
     ...overrides,
   }
 }
@@ -78,7 +76,7 @@ describe('PreviewPanelManager.preview', () => {
     const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
     const deps = buildDeps({
       pool,
-      resolveProject: () => ({ templatesRoot: '/tmp/t', fixture: { user: 'world' } }),
+      resolveProject: () => ({ templatesRoot: '/tmp/t' }),
     })
     const manager = new PreviewPanelManager(deps)
 
@@ -86,7 +84,6 @@ describe('PreviewPanelManager.preview', () => {
 
     expect(daemon.render).toHaveBeenCalledWith({
       templateName: 'welcome.ftlh',
-      fixturePath: expect.any(String),
     })
 
     const panel = (vscode.window.createWebviewPanel as unknown as {
@@ -111,10 +108,10 @@ describe('PreviewPanelManager.preview', () => {
 
     expect(vscode.window.createWebviewPanel).toHaveBeenCalledTimes(1)
     expect(daemon.render).toHaveBeenCalledTimes(2)
-    expect(daemon.render).toHaveBeenNthCalledWith(2, expect.objectContaining({ templateName: 'b.ftlh' }))
+    expect(daemon.render).toHaveBeenNthCalledWith(2, { templateName: 'b.ftlh' })
   })
 
-  test('fixtureless project renders against {} (no error thrown)', async () => {
+  test('renders when resolveProject returns a minimal entry', async () => {
     const daemon = fakeDaemon('<p>x</p>')
     const pool = new DaemonPool({ templatesRoot: '/tmp/t' }, () => daemon)
     const manager = new PreviewPanelManager(
@@ -154,7 +151,7 @@ describe('PreviewPanelManager.preview', () => {
     await manager.refresh()
 
     expect(daemon.render).toHaveBeenCalledTimes(2)
-    expect(daemon.render).toHaveBeenNthCalledWith(2, expect.objectContaining({ templateName: 'welcome.ftlh' }))
+    expect(daemon.render).toHaveBeenNthCalledWith(2, { templateName: 'welcome.ftlh' })
   })
 
   test('successful render clears diagnostics for the active URI', async () => {

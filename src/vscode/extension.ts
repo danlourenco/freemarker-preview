@@ -68,7 +68,6 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     daemonOptionsExtra: {
       javaScriptPath,
-      previewMissingAs: 'placeholder',
     },
     resolveProject,
     extensionUri: context.extensionUri,

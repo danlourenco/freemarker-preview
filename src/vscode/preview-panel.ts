@@ -1,8 +1,6 @@
 import * as vscode from 'vscode'
-import { basename, join, relative } from 'node:path'
+import { basename, relative } from 'node:path'
 import { existsSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { materializeFixture } from '../core/fixtures.ts'
 import { inlineCss as defaultInlineCss } from '../core/inline.ts'
 import { FreemarkerError } from '../core/errors.ts'
 import type { DaemonOptions } from '../core/daemon.ts'
@@ -30,7 +28,6 @@ export interface PreviewPanelDeps {
   resolveProject: (uri: vscode.Uri) => RegistryProjectEntry | null
   extensionUri?: vscode.Uri
   inlineCss?: (html: string) => string
-  fixtureDir?: string
   /** Forwarded into DaemonOptions when the pool is created lazily. */
   daemonOptionsExtra?: Omit<DaemonOptions, 'templatesRoot'>
   /** Optional sink for FreeMarker errors — wires into VS Code diagnostics. */
@@ -41,7 +38,6 @@ interface ActiveTemplate {
   uri: vscode.Uri
   templatesRoot: string
   templateName: string
-  fixture: Record<string, unknown> | null
 }
 
 export interface WebviewAssetUris {
@@ -171,7 +167,6 @@ export class PreviewPanelManager {
   private readonly daemonOptionsExtra: Omit<DaemonOptions, 'templatesRoot'>
   private readonly resolveProject: (uri: vscode.Uri) => RegistryProjectEntry | null
   private readonly inlineCss: (html: string) => string
-  private readonly fixtureDir: string
   private readonly extensionUri: vscode.Uri | null
   private readonly diagnostics: DiagnosticsSink | null
 
@@ -192,7 +187,6 @@ export class PreviewPanelManager {
     }
     this.resolveProject = deps.resolveProject
     this.inlineCss = deps.inlineCss ?? defaultInlineCss
-    this.fixtureDir = deps.fixtureDir ?? tmpdir()
     this.extensionUri = deps.extensionUri ?? null
     this.diagnostics = deps.diagnostics ?? null
     if (this.explicitPool) this.pool = this.explicitPool
@@ -244,7 +238,6 @@ export class PreviewPanelManager {
       uri,
       templatesRoot: project.templatesRoot,
       templateName,
-      fixture: project.fixture ?? null,
     }
 
     this.ensurePanel(uri)
@@ -318,15 +311,11 @@ export class PreviewPanelManager {
   private async renderActive(): Promise<void> {
     if (!this.panel || !this.active || !this.daemonHandle) return
 
-    const fixturePath = join(this.fixtureDir, `freemarker-preview-fixture-${process.pid}.json`)
-    materializeFixture(this.active.fixture, fixturePath)
-
     this._onStateChange.fire('rendering')
     const activeUri = this.active.uri
     try {
       const result = await this.daemonHandle.daemon.render({
         templateName: this.active.templateName,
-        fixturePath,
       })
       const html = this.inlineCss(result.html)
       await this.panel.webview.postMessage({

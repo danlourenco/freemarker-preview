@@ -24,7 +24,6 @@ function buildDeps(overrides: Partial<PreviewPanelDeps> = {}): PreviewPanelDeps 
     pool: new DaemonPool({ templatesRoot: project.templatesRoot }, () => fakeDaemon()),
     resolveProject: vi.fn(() => project),
     inlineCss: (html: string) => html,
-    fixtureDir: tmpdir(),
     ...overrides,
   }
 }

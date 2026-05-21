@@ -1,12 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect as netConnect } from 'node:net'
 import { fileURLToPath } from 'node:url'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { RenderDaemon } from '../core/daemon.ts'
-import { materializeFixture } from '../core/fixtures.ts'
 import { FreemarkerError } from '../core/errors.ts'
 import { extractSnippet, type Snippet } from '../core/format-error.ts'
 import { inlineCss } from '../core/inline.ts'
@@ -14,29 +11,9 @@ import { Watcher } from './watcher.ts'
 
 export interface DevServerOptions {
   templatesRoot: string
-  /**
-   * Inline fixture data from the user-level registry. Materialized to a
-   * temp file per render so the JBang renderer can read it. `null` →
-   * render against `{}` (missing-variable pills surface everything).
-   */
-  fixture?: Record<string, unknown> | null
-  /**
-   * Path to the user-level registry file. The dev server re-reads it per
-   * render so external edits to the inline fixture reflect immediately
-   * on the next refresh without restarting `dev`. Paired with
-   * `projectRoot` to look up the right entry.
-   */
-  registryPath?: string | null
-  /**
-   * Absolute project root path — the registry key for this project's
-   * entry. Used to locate the project's fixture when re-reading the
-   * registry per render.
-   */
-  projectRoot?: string | null
   port?: number
   inlineCss?: boolean
   inlineCssOptions?: Record<string, unknown>
-  previewMissingAs?: 'error' | 'placeholder' | 'empty'
   freemarkerSettings?: Record<string, string>
 }
 
@@ -49,13 +26,9 @@ const PUBLIC_DIR = resolve(
 
 export class DevServer {
   private readonly templatesRoot: string
-  private readonly fixture: Record<string, unknown> | null
-  private readonly registryPath: string | null
-  private readonly projectRoot: string | null
   private readonly preferredPort: number
   private readonly inlineCssEnabled: boolean
   private readonly inlineCssOptions: Record<string, unknown>
-  private readonly missingMode: 'error' | 'placeholder' | 'empty'
   private readonly freemarkerSettings: Record<string, string>
 
   private daemon: RenderDaemon | null = null
@@ -63,30 +36,18 @@ export class DevServer {
   private server: Server | null = null
   private sseClients = new Set<ServerResponse>()
   private actualPort: number | null = null
-  private fixtureDir: string | null = null
-  private fixturePath: string | null = null
 
   constructor(opts: DevServerOptions) {
     this.templatesRoot = resolve(opts.templatesRoot)
-    this.fixture = opts.fixture ?? null
-    this.registryPath = opts.registryPath ?? null
-    this.projectRoot = opts.projectRoot ?? null
     this.preferredPort = opts.port ?? DEFAULT_PORT
     this.inlineCssEnabled = opts.inlineCss ?? true
     this.inlineCssOptions = opts.inlineCssOptions ?? { preserveMediaQueries: true }
-    this.missingMode = opts.previewMissingAs ?? 'error'
     this.freemarkerSettings = opts.freemarkerSettings ?? {}
   }
 
   async start(): Promise<{ url: string; port: number }> {
-    // Allocate a temp dir we write a single fixture.json into per render.
-    // The path stays stable across renders; only the content rewrites.
-    this.fixtureDir = mkdtempSync(join(tmpdir(), 'fmp-fixture-'))
-    this.fixturePath = join(this.fixtureDir, 'fixture.json')
-
     this.daemon = new RenderDaemon({
       templatesRoot: this.templatesRoot,
-      previewMissingAs: this.missingMode,
       freemarkerSettings: this.freemarkerSettings,
     })
 
@@ -118,11 +79,6 @@ export class DevServer {
     this.watcher = null
     await this.daemon?.shutdown()
     this.daemon = null
-    if (this.fixtureDir) {
-      rmSync(this.fixtureDir, { recursive: true, force: true })
-      this.fixtureDir = null
-      this.fixturePath = null
-    }
   }
 
   private listenWithPortWalk(server: Server): Promise<number> {
@@ -164,30 +120,6 @@ export class DevServer {
     }
   }
 
-  /**
-   * Read the current fixture for this project. Defaults to the value
-   * captured at server construction. If `registryPath` + `projectRoot`
-   * are wired up, re-read from disk on every render so external edits
-   * to the registry JSON reflect on the next refresh.
-   */
-  private readCurrentFixture(): Record<string, unknown> | null {
-    if (!this.registryPath || !this.projectRoot) return this.fixture
-    try {
-      const raw = readFileSync(this.registryPath, 'utf8')
-      const parsed = JSON.parse(raw) as {
-        projects?: Record<string, { fixture?: Record<string, unknown> }>
-      }
-      const entry = parsed.projects?.[this.projectRoot]
-      // Entry's `fixture` undefined → registry has the project but no
-      // fixture configured. Return null so the renderer uses `{}`.
-      // Registry read or parse failed → keep the construction-time value
-      // (better than blowing up the render).
-      return entry?.fixture ?? null
-    } catch {
-      return this.fixture
-    }
-  }
-
   private async serveFile(
     res: ServerResponse,
     filename: string,
@@ -208,27 +140,16 @@ export class DevServer {
       res.end('missing ?template')
       return
     }
-    if (!this.daemon || !this.fixturePath) {
+    if (!this.daemon) {
       res.statusCode = 503
       res.end('daemon not running')
       return
     }
 
-    // Re-read the per-project fixture from the user registry per render so
-    // that external edits to ~/.config/freemarker-preview/projects.json
-    // reflect on the next refresh without restarting `dev`.
-    const fixtureData = this.readCurrentFixture()
-    materializeFixture(fixtureData, this.fixturePath)
-    const fixturePath = this.fixturePath
-    const templatePath = resolve(this.templatesRoot, templateName)
-    if (fixtureData === null) {
-      // No fixture in the registry — render against {}. Visible
-      // missing-variable pills surface every unbound reference.
-      res.setHeader('x-fmp-fixtureless', '1')
-    }
+    const templatePathFallback = resolve(this.templatesRoot, templateName)
 
     try {
-      const { html } = await this.daemon.render({ templateName, fixturePath })
+      const { html } = await this.daemon.render({ templateName })
       const out = this.inlineCssEnabled
         ? inlineCss(html, this.inlineCssOptions)
         : html
@@ -259,7 +180,7 @@ export class DevServer {
             error: {
               type: 'internal',
               message: (err as Error).message,
-              templatePath,
+              templatePath: templatePathFallback,
             },
           }
       res.end(JSON.stringify(body))

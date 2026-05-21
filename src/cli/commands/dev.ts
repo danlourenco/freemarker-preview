@@ -1,36 +1,16 @@
-import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import open from 'open'
 import { DevServer } from '../../server/index.ts'
 import { loadConfig } from '../../core/config.ts'
-import { computeRegistryPath } from '../../core/registry.ts'
-import type { PreviewMissingAs } from '../../core/render.ts'
-
-const VALID_MISSING_MODES: readonly PreviewMissingAs[] = [
-  'error',
-  'placeholder',
-  'empty',
-]
-
-function parseMissingFlag(value: string | undefined): PreviewMissingAs {
-  if (!VALID_MISSING_MODES.includes(value as PreviewMissingAs)) {
-    throw new Error(
-      `--missing must be one of ${VALID_MISSING_MODES.join(' | ')} (got ${value})`,
-    )
-  }
-  return value as PreviewMissingAs
-}
 
 export interface DevArgs {
   port?: number
   open: boolean
-  missing?: PreviewMissingAs
 }
 
 export function parseDevArgs(argv: string[]): DevArgs {
   let port: number | undefined
   let openFlag = true
-  let missing: PreviewMissingAs | undefined
 
   let i = 0
   while (i < argv.length) {
@@ -49,15 +29,10 @@ export function parseDevArgs(argv: string[]): DevArgs {
       i += 1
       continue
     }
-    if (arg === '--missing') {
-      missing = parseMissingFlag(argv[i + 1])
-      i += 2
-      continue
-    }
     i += 1
   }
 
-  return { port, open: openFlag, missing }
+  return { port, open: openFlag }
 }
 
 export async function runDev(argv: string[]): Promise<number> {
@@ -74,30 +49,11 @@ export async function runDev(argv: string[]): Promise<number> {
     ? resolve(cfg.projectRoot, cfg.templatesRoot)
     : process.cwd()
 
-  // dev defaults to 'placeholder' so undefined variables render as visible
-  // pills inline rather than blocking the whole preview with the error overlay.
-  // CLI flag > config > command default.
-  const missingMode: PreviewMissingAs =
-    args.missing ?? cfg.previewMissingAs ?? 'placeholder'
-
-  // Wire registryPath + projectRoot so the dev server re-reads the
-  // inline fixture per render — external edits to the registry JSON
-  // reflect on the next refresh without restarting dev.
-  const registryPath = computeRegistryPath({
-    platform: process.platform,
-    homedir: homedir(),
-    env: process.env,
-  })
-
   const server = new DevServer({
     templatesRoot,
-    fixture: cfg.fixture,
-    registryPath,
-    projectRoot: cfg.projectRoot,
     port: args.port ?? cfg.dev.port,
     inlineCss: cfg.inlineCss,
     inlineCssOptions: cfg.inlineCssOptions,
-    previewMissingAs: missingMode,
     freemarkerSettings: cfg.freemarker,
   })
 
@@ -113,7 +69,6 @@ export async function runDev(argv: string[]): Promise<number> {
 
   process.stdout.write(`freemarker-preview dev on ${started.url}\n`)
   process.stdout.write(`  templatesRoot: ${templatesRoot}\n`)
-  process.stdout.write(`  missing vars:  ${missingMode}\n`)
 
   if (wantsOpen) {
     try {

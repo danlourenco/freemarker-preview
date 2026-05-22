@@ -175,6 +175,8 @@ function selectTemplate(name) {
 
 /* ---------- mode controls ---------- */
 
+let scaleObserver = null;
+
 function applyMode() {
   const params = getParams();
   const mode = params.mode || 'ios-mail';
@@ -192,15 +194,26 @@ function applyMode() {
     targetContainer.appendChild(iframe);
   }
 
+  if (scaleObserver) {
+    scaleObserver.disconnect();
+    scaleObserver = null;
+  }
+
   // iOS Mail scale: render iframe at 980px CSS width, transform-scale to fit
   // the 375px container. Height is derived from container height / scale so
-  // the visual viewport fills the container vertically.
+  // the visual viewport fills the container vertically. A ResizeObserver
+  // handles two cases the synchronous read can't: cold load (the mockup-phone
+  // wrapper's aspect-ratio layout hasn't settled, so clientHeight is 0) and
+  // browser window resizes mid-session.
   if (cfg.scale !== 1) {
-    const containerHeight = targetContainer.clientHeight || 600;
     iframe.style.width = cfg.iframeWidth;
-    iframe.style.height = `${containerHeight / cfg.scale}px`;
     iframe.style.transform = `scale(${cfg.scale})`;
     iframe.style.transformOrigin = 'top left';
+    scaleObserver = new ResizeObserver(() => {
+      const h = targetContainer.clientHeight;
+      if (h > 0) iframe.style.height = `${h / cfg.scale}px`;
+    });
+    scaleObserver.observe(targetContainer);
   } else {
     iframe.style.width = '';
     iframe.style.height = '';

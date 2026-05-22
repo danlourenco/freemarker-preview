@@ -327,9 +327,9 @@ iframe {
 }
 
 /* iOS Mail mode renders the iframe at 980px CSS width and scales it to fit
-   via transform: scale(0.382). Both container types need overflow clipping
-   so the scaled-down 980px iframe doesn't bleed outside its visual bounds. */
-.phone-iframe-container,
+   via transform: scale(0.382). .preview-plain needs overflow clipping so the
+   scaled-down 980px iframe doesn't bleed outside its visual bounds.
+   (.phone-iframe-container already clips via the rule above.) */
 .preview-plain {
   overflow: hidden;
 }
